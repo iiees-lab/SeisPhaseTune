@@ -1,5 +1,8 @@
 import psutil
 import cpuinfo
+import logging
+import torch
+import subprocess
 
 def get_cpu_info():
     """
@@ -35,3 +38,45 @@ def get_cpu_info():
         f"{'Physical cores:':25} {physical_cores}\n"
     )
     return txt
+
+
+def Check_CUDA_availability():
+    logging.info("CUDA available: %s", torch.cuda.is_available())
+    if torch.cuda.is_available():
+        idx = torch.cuda.current_device()
+        props = torch.cuda.get_device_properties(idx)
+
+        logging.info("CUDA device count: %d", torch.cuda.device_count())
+        logging.info("Current device index: %d", idx)
+        logging.info("Current device name: %s", torch.cuda.get_device_name(idx))
+
+        logging.info("\n=== Device Properties ===")
+        logging.info("Name: %s", props.name)
+        logging.info("Total memory (GB): %.2f", props.total_memory / 1024**3)
+        logging.info("Multiprocessors: %d", props.multi_processor_count)
+        logging.info("Compute capability: %d.%d", props.major, props.minor)
+
+        # Safe getter for version-dependent properties
+        def safe(prop):
+            return getattr(props, prop, "N/A")
+
+        logging.info("Max threads per block: %s", safe("max_threads_per_block"))
+        logging.info("Max threads per multiprocessor: %s", safe("max_threads_per_multi_processor"))
+        logging.info("Shared memory per block (bytes): %s", safe("shared_memory_per_block"))
+        logging.info("Warp size: %s", safe("warp_size"))
+        logging.info("Clock rate (kHz): %s", safe("clock_rate"))
+
+        logging.info("\n=== Memory Usage ===")
+        logging.info("Allocated (GB): %.3f", torch.cuda.memory_allocated() / 1024**3)
+        logging.info("Reserved (GB): %.3f", torch.cuda.memory_reserved() / 1024**3)
+
+        # Optional: nvidia-smi output
+        try:
+            logging.info("\n=== nvidia-smi Output ===")
+            smi_output = subprocess.check_output(["nvidia-smi"], encoding="utf-8")
+            logging.info("\n%s", smi_output)
+        except Exception as e:
+            logging.info("nvidia-smi not available: %s", e)
+
+    else:
+        logging.info("CUDA is not available on this environment.")

@@ -1,2 +1,2 @@
-target_config_filename: Training-cfg.yml
+target_config_filename: AutoLabeling-cfg.yml
 target_config_filepath: ./Configs
