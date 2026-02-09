@@ -10,7 +10,8 @@ log:
     format: "%(asctime)s - %(levelname)s - %(message)s"
 
 dataset:
-    path: F:\DataSets-Local
+    #path: F:\DataSets-Local
+    path: /media/ikahbasi/Local Disk ikahbasi 4T1/DataSets-Local/
     fname: Merged_All_DataSets_2025-07-10 (Ahar-Ilam-Kaki-Qeshm)
     parameters:
         dimension_order: CW
@@ -26,7 +27,7 @@ dataset:
     
 
 training:
-    num_workers: 0 # The number of threads used for loading data
+    num_workers: 10 # The number of threads used for loading data
     hyperparameters:
         batch_size: 256
         learning_rates: [1e-2, 1e-3]
