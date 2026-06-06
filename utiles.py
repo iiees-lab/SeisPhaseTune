@@ -7,6 +7,8 @@ for path in lib_path:
 import SeisRoutine.waveform as srw
 from obspy import read
 import logging
+import SeisRoutine.catalog as src
+from seisbench.util.trace_ops import stream_to_array
 
 
 def fill_missing_channels(
@@ -146,3 +148,120 @@ class obspy_stream_reader:
             self._read(time=pick.time)
         target_stream = self.stream.select(station=pick.waveform_id.station_code)
         return target_stream
+
+
+def mk_source_attributes(event):
+    origin = event.preferred_origin()
+    mag = event.preferred_magnitude()
+
+    source_id = str(event.resource_id)
+
+    event_params = {
+        "source_id": source_id,
+        "source_origin_time": str(origin.time),
+        "source_origin_uncertainty_sec": origin.time_errors["uncertainty"],
+        "source_latitude_deg": origin.latitude,
+        "source_latitude_uncertainty_km": origin.latitude_errors["uncertainty"],
+        "source_longitude_deg": origin.longitude,
+        "source_longitude_uncertainty_km": origin.longitude_errors["uncertainty"],
+        "source_depth_km": origin.depth,
+        "source_depth_uncertainty_km": origin.depth_errors["uncertainty"],
+    }
+    ### Unit conversion
+    if event_params['source_depth_km']:
+        event_params['source_depth_km'] /= 1e3
+    if event_params['source_depth_uncertainty_km']:
+        event_params['source_depth_uncertainty_km'] /= 1e3
+    if event_params['source_latitude_uncertainty_km']:
+        event_params['source_latitude_uncertainty_km'] *= 111
+    if event_params['source_longitude_uncertainty_km']:
+        event_params['source_latitude_uncertainty_km'] *= 111
+
+    if mag is not None:
+        event_params["source_magnitude"] = mag.mag
+        event_params["source_magnitude_uncertainty"] = mag.mag_errors["uncertainty"]
+        event_params["source_magnitude_type"] = mag.magnitude_type
+        event_params["source_magnitude_author"] = mag.creation_info.agency_id
+        event_params["split"] = None
+    return event_params
+
+
+def mk_station_attributes(df):
+    """
+
+    Parameters
+    ----------
+    df : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    network : TYPE
+        DESCRIPTION.
+    
+    Input Example
+    -------
+    longitude,latitude,elevation,network,station,location,channel,sensor,region
+    47.8470,32.5137,300,IL,TONL,,HH,t5645,
+
+    """
+    network = {}
+    for index, row in df.iterrows():
+        network[row.station] = {
+            'station_code': row.station,
+            'station_network_code': row.network,
+            'station_location_code': row.location,
+            'station_latitude_deg': row.latitude,
+            'station_longitude_deg': row.longitude,
+            'station_elevation_m': row.elevation,
+            'station_sensitivity_counts_spm': None,
+            'station_sensor': row.sensor,
+            'station_region': row.region,
+            }
+    return network
+
+
+def mk_pick_attributes(pick):
+    net = pick.waveform_id.network_code
+    sta = pick.waveform_id.station_code
+    trace_params = {
+        "station_network_code": net,
+        "station_code": sta,
+        "trace_channel": pick.waveform_id.channel_code[:2],
+        "station_location_code": pick.waveform_id.location_code,
+        "evaluation_mode": pick.evaluation_mode}
+    return trace_params
+
+
+def mk_arrival_attributes(pick, event):
+    origin = event.preferred_origin()
+    arrival = src.select_arrival_related_to_the_pick(pick=pick,
+                                                     arrivals=origin.arrivals)
+    if arrival:
+        phase_params = arrival.__dict__.copy()
+        for key in ['resource_id', 'pick_id', 'phase', 'takeoff_angle_errors',
+                    'horizontal_slowness_residual',
+                    'horizontal_slowness_weight']:
+            phase_params.pop(key)
+        phase_params = {f'{key}_{pick.phase_hint}': val
+                        for key, val in phase_params.items()}
+    else:
+        phase_params = {}
+    return phase_params
+
+
+def mk_stream_attributes(st, component_order):
+    starttime, data, completeness = stream_to_array(
+        stream=st, component_order=component_order)
+    tr = st[0]
+    sps = tr.stats.sampling_rate
+    trace_params = {
+        "trace_start_time": str(starttime),
+        "trace_npts": data.shape[-1],
+        "trace_sampling_rate_hz": sps,
+        "trace_dt_s": tr.stats.delta,
+        "trace_channel": tr.stats.channel[: 2],
+        "trace_category": "earthquake",
+        "trace_completeness": completeness,
+        }
+    return data, trace_params
