@@ -1,3 +1,14 @@
+import sys
+lib_path = [r'C:\Users\ikahbasi\OneDrive\Applications\GitHub\SeisRoutine',
+            r'C:\Users\ikahb\OneDrive\Applications\GitHub\SeisRoutine']
+for path in lib_path:
+    sys.path.append(path)
+##########################################################################
+import SeisRoutine.waveform as srw
+from obspy import read
+import logging
+
+
 def fill_missing_channels(
         available_channels,
         reference_channels={0: "E", 1: "N", 2: "Z"},
@@ -96,3 +107,42 @@ def fill_missing_channels(
         for channel in defect_channels:
             output.insert(channel, replacement_channel)
     return output
+
+
+class obspy_stream_reader:
+    def __init__(self, root, pattern_path):
+        self.root = root
+        self.pattern_path = pattern_path
+        self.stream = None
+        self.stats  = None
+
+    def _read(self, time):
+        pattern = self.pattern_path.format(time=time)
+        path = f'{self.root}/{pattern}'
+        logging.info(f'Reading Data: {path}')
+        self.stream = read(path)
+        self._soft_preprocessing()
+        self.stations = list({tr.stats.station for tr in self.stream})
+    
+    def _soft_preprocessing(self):
+        srw.waveform.uni_sps(self.stream, sps=None)
+        self.stream.merge(-1)
+        self.stream.detrend('constant')
+        self.stream.merge()
+        self.stream = self.stream.split()
+        # self.stream.merge(method=1, fill_value=0)
+        # self.stream.filter('bandpass', freqmin=0.5, freqmax=49, zerophase=True)
+
+    def sps_check(self, sps=100):
+        # print('Available sps:', {tr.stats.sampling_rate for tr in self.stream})
+        assert all(tr.stats.sampling_rate==sps for tr in self.stream)
+    
+    def get_data_related_to_pick(self, pick):
+        if self.stream is None:
+            self._read(time=pick.time)
+        if not pick.waveform_id.station_code in self.stations:
+            self._read(time=pick.time)
+        if not pick.time.julday == self.stream[0].stats.starttime.julday:
+            self._read(time=pick.time)
+        target_stream = self.stream.select(station=pick.waveform_id.station_code)
+        return target_stream
