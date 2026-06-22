@@ -10,7 +10,7 @@ log:
     format: "%(asctime)s - %(levelname)s - %(message)s"
 
 dataset:
-    path: F:\DataSets-Local\Merged_All_DataSets_2025-07-10 (Ahar-Ilam-Kaki-Qeshm)
+    path: D:\DataSets-Local\Merged_All_DataSets_2025-07-10 (Ahar-Ilam-Kaki-Qeshm)
     parameters:
         dimension_order: CW
         component_order: ZNE
