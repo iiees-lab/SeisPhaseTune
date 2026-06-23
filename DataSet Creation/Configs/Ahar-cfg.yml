@@ -1,47 +1,38 @@
 #jupyter nbconvert --execute --to html test-run-with-command-line.ipynb
 #jupyter nbconvert --to ipynb --execute ./test-run-with-command-line.ipynb --output "1403-08-27.ipynb"
-log:
-    mode: both
-    # Note: The name and path of the log file are set in the settings section for each code.
-    filename_prefix: Ahar_mk-dataset
-    filename: now # if set to "now", the current date set as the logfile name.
-    filepath: None # Set in the subset config.
-    level: INFO
-    format: "%(asctime)s - %(levelname)s - %(message)s"
+project:
+    name: Ahar
+    network: AH
+    channel: HH
 
-mk_dataset:
-    parameters:
+log:
+    level: INFO
+    format: "%(asctime)s | %(levelname)s | %(message)s"
+    mode: both
+    colored_console: True
+    # Note: The name and path of the log file are set in the settings section for each code.
+    filepath: "{dataset.path.dataset}" # Set in the subset config.
+    filename_prefix: mk_dataset
+    filename: "{project.name}_{timestamp}" # if set to "now", the current date set as the logfile name.
+    filename_timestamp: null
+
+dataset:
+    data_format:
         dimension_order: CW
         component_order: ZNE
         sampling_rate: 100
         measurement: velocity
         unit: counts
         instrument_response: not restituted
-    cut_time:
+    trim:
         before: 5
         after: 25
-    zero_pad:
-        before: 0
-        after: 0
-    noisepad:
-        apply: False
-        before: 0
-        after: 0
-        std_start: 2
-        std_end: 2
-    filter:
-        apply: False
-        low: 1
-        high: 10
-    autolabeling: False
-    save_streams: False
+    save_streams:
+        enabled: False
+        format: MSEED
     path:
-        inputs:
-            catalog: F:\Catalogs\Ahar.out
-            stream_root: F:\Local_Network_Data-SeisComP\Ahar
-            network_details: F:\Network_Details\Ahar.csv
-            stream_pattern: '{time.year}/AH/*/HH*.D/*.*.*.*.D.{time.year}.{time.julday:03d}' # Note: Check Network!
-        outputs:
-            dataset: 'F:\DataSets-Local\Ahar-Dataset_{datetime_str}'
-            log:
-                filename: now
+        catalog: D:\Catalogs\{project.name}.out
+        inventory: D:\Inventory\DataLess\*\*\*.dlsv
+        stream_root: D:\Local_Network_Data-SeisComP\{project.name}
+        stream_pattern: '{time.year}/{project.network}/*/{project.channel}*.D/*.*.*.*.D.{time.year}.{time.julday:03d}'
+        dataset: 'D:\DataSets-Local\{project.name}-Dataset_{timestamp}'
