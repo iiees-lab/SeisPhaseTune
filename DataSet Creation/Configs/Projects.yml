@@ -1,0 +1,18 @@
+path: 'D:\DataSets-Local\1405-04-03'
+projects:
+  - name: Ahar
+    network: AH
+    channel: HH
+    parameters_config_path: ./Configs/Parameters-cfg.yml
+  - name: Ilam
+    network: IL
+    channel: HH
+    parameters_config_path: ./Configs/Parameters-cfg.yml
+  - name: Kaki
+    network: KK
+    channel: HH
+    parameters_config_path: ./Configs/Parameters-cfg.yml
+  - name: Qeshm
+    network: QM
+    channel: HH
+    parameters_config_path: ./Configs/Parameters-cfg.yml
