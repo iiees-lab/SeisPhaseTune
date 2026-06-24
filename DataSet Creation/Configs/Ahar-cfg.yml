@@ -24,6 +24,8 @@ dataset:
         measurement: velocity
         unit: counts
         instrument_response: not restituted
+    preprocess:
+        merge_method: 1
     trim:
         before: 5
         after: 25
