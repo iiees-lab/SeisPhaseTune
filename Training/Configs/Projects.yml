@@ -1,0 +1,3 @@
+projects:
+  - name: PhaseNet
+    parameters_config_path: c:\Users\ikahbasi\OneDrive\Applications\GitHub\SeisPhaseTune\Training\Configs\Parameters-cfg.yml

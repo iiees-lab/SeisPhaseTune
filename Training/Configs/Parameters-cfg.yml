@@ -1,0 +1,59 @@
+#jupyter nbconvert --execute --to html test-run-with-command-line.ipynb
+#jupyter nbconvert --to ipynb --execute ./test-run-with-command-line.ipynb --output "1403-08-27.ipynb"
+log:
+    level: INFO
+    format: "%(asctime)s | %(levelname)s | %(message)s"
+    mode: both
+    colored_console: True
+    # Note: The name and path of the log file are set in the settings section for each code.
+    filepath: "{path.model}" # Set in the subset config.
+    filename_prefix: mk_dataset
+    filename: "{project.name}_{timestamp}" # if set to "now", the current date set as the logfile name.
+    filename_timestamp: null
+
+dataset:
+    data_format:
+        dimension_order: CW
+        component_order: ZNE
+        sampling_rate: 100
+        measurement: velocity
+        unit: counts
+        instrument_response: not restituted
+    suffle: true
+    split_ratios:
+        train: 0.8
+        dev: 0.1
+        test: 0.1
+
+    
+
+preprocess:
+    trim:
+        before: 5
+        after: 25
+model:
+    name: PhaseNet
+    norm: peak
+    phases: 'NPS'
+    version_str: '{timestamp}'
+
+path:
+    dataset: 'C:\Users\ikahbasi\Documents\DataSets-Local\1405-04-03\Merged_Dataset_2026-06-24T15-15-22'
+    model: 'D:\Models\{model.name}_{timestamp}'
+
+train:
+    dataloader:
+        suffle: false
+        batch_size: 256
+        num_workers: 0 # The number of threads used for loading data
+    hyperparameters:
+        
+        learning_rates: [1e-2]
+        epochs_for_each_learning_rate: [1]
+        manual_seed: 42
+        norm: peak
+        phases: 'NPS'
+        lr_scheduler:
+            ReduceLROnPlateau:
+                factor: 0.2
+                patience: 3
