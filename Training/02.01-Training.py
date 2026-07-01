@@ -166,7 +166,8 @@ def loss_fn(y_pred, y_true, eps=1e-5):
     h = h.mean()  # Mean over batch axis
     return -h
 
-def train_loop(dataloader, optimizer):
+def train_loop(model, dataloader, optimizer):
+    model.train()
     lst_loss = []
     size = len(dataloader.dataset)
     for batch_id, batch in enumerate(dataloader):
@@ -182,13 +183,15 @@ def train_loop(dataloader, optimizer):
         loss.backward()
         optimizer.step()
         #
-        if batch_id % 5 == 0:
-            loss, current = loss.item(), batch_id * batch["X"].shape[0]
-            logging.info(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-            lst_loss.append((batch_id//5, loss))
+        srconf.ProgressMsg.print(
+            part=batch_id * batch["X"].shape[0],
+            total=size,
+            step=5,
+            subject=f"Training loss: {loss:>7f}",
+        )
     return lst_loss
 
-def test_loop(dataloader):
+def test_loop(dataloader, model):
     num_batches = len(dataloader)
     test_loss = 0
 
@@ -309,7 +312,7 @@ for cfg_project in cfg_projects.projects:
         ),
         sbg.ProbabilisticLabeller(
             label_columns=phase_dict,
-            model_labels=cfg.train.hyperparameters.phases,
+            model_labels=cfg.model.hyperparameters.phases,
             sigma=30,
             dim=0,
         ),
@@ -329,7 +332,7 @@ for cfg_project in cfg_projects.projects:
         random_state=42,
     )
     train, dev, test = dataset.train_dev_test()
-    print(train, dev, test, sep='\n')
+    # print(train, dev, test, sep='\n')
     
     train_generator = sbg.GenericGenerator(train)
     dev_generator = sbg.GenericGenerator(dev)
@@ -342,56 +345,54 @@ for cfg_project in cfg_projects.projects:
     
     train_loader = DataLoader(
         train_generator,
-        batch_size=cfg.train.dataloader.batch_size,
-        shuffle=cfg.train.dataloader.suffle,
-        num_workers=cfg.train.dataloader.num_workers,
+        batch_size=cfg.dataloader.train.batch_size,
+        shuffle=cfg.dataloader.train.shuffle,
+        num_workers=cfg.dataloader.train.num_workers,
         worker_init_fn=sbu.worker_seeding,
     )
     dev_loader = DataLoader(
         dev_generator,
-        batch_size=cfg.train.dataloader.batch_size,
-        shuffle=cfg.train.dataloader.suffle,
-        num_workers=cfg.train.dataloader.num_workers,
+        batch_size=cfg.dataloader.validation.batch_size,
+        shuffle=cfg.dataloader.validation.shuffle,
+        num_workers=cfg.dataloader.validation.num_workers,
         worker_init_fn=sbu.worker_seeding,
     )
     test_loader = DataLoader(
         test_generator,
-        batch_size=cfg.train.dataloader.batch_size,
-        shuffle=cfg.train.dataloader.suffle,
-        num_workers=cfg.train.dataloader.num_workers,
+        batch_size=cfg.dataloader.test.batch_size,
+        shuffle=cfg.dataloader.test.shuffle,
+        num_workers=cfg.dataloader.test.num_workers,
         worker_init_fn=sbu.worker_seeding,
     )
     
     torch.manual_seed(
         cfg.train.hyperparameters.manual_seed
     )
-    model = sbm.PhaseNet(
-        phases=cfg.train.hyperparameters.phases,
-        norm=cfg.train.hyperparameters.norm,
+    
+    model = getattr(
+        sbm,
+        cfg.model.name,
+    )
+    model = model(
+        **cfg.model.hyperparameters.to_dict(),
     )
     
     if torch.cuda.is_available():
         model.cuda()
-        msg = ("Processing on GPU:\n"
-               f"The {model.name} Model are running on GPU\n"
-               f"GPU Name: {torch.cuda.get_device_name(0)}\n"
-               f"Number of GPUs: {torch.cuda.device_count()}\n"
-               f"CUDA available: {torch.cuda.is_available()}\n"
-               )
+        msg = "CUDA is available. Training on GPU."
     else:
-        msg = "Processing on CPU"
+        msg = "CUDA is NOT available. Training on CPU."
     
     logging.info(msg)
     
-
-    df_loss = pd.DataFrame(columns=['epoch', 'batch', 'loss_train', 'loss_test'])
     ###
+    log_learning = []
     for learning_rate, epochs in zip(cfg.train.hyperparameters.learning_rates,
                                      cfg.train.hyperparameters.epochs_for_each_learning_rate):
         logging.info(f"Main Learning-Rate: {learning_rate}\n" + "-"*70)
         optimizer = torch.optim.Adam(
             model.parameters(),
-            lr=eval(learning_rate),
+            lr=float(learning_rate),
         )
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer=optimizer,
@@ -408,22 +409,24 @@ for cfg_project in cfg_projects.projects:
             learning_rate = scheduler.get_last_lr()[0]
             logging.info(f"Learning-Rate: {learning_rate} Epoch: {epoch+1}\n" + "-"*70)
             train_loss = train_loop(
+                model=model,
                 dataloader=train_loader,
                 optimizer=optimizer,
             )
-            test_loss = test_loop(dev_loader)
+            test_loss = test_loop(
+                dataloader=dev_loader,
+                model=model)
             scheduler.step(test_loss)
             #
-            df_loss_tmp = pd.DataFrame(
-                train_loss,
-                columns=['batch', 'loss_train']
-            )
-            df_loss_tmp['epoch'] = epoch
-            df_loss_tmp['loss_test'] = None
-            last_none_index = len(df_loss_tmp) - 1
-            df_loss_tmp.at[last_none_index, "loss_test"] = test_loss
-            df_loss = pd.concat([df_loss, df_loss_tmp], ignore_index=True)
-    
+            for batch, loss in train_loss:
+                dict_tmp = {
+                    'epoch': epoch,
+                    'batch': batch,
+                    'loss_train': loss,
+                    'loss_test': test_loss,
+                }
+                log_learning.append(dict_tmp)
+    df_loss = pd.DataFrame(log_learning)
     os.makedirs(
         os.path.abspath(cfg.path.model),
         exist_ok=True

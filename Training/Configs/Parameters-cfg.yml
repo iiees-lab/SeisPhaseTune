@@ -25,6 +25,20 @@ dataset:
         dev: 0.1
         test: 0.1
 
+dataloader:
+    train:
+        batch_size: 256
+        shuffle: true
+        num_workers: 0
+    validation:
+        batch_size: 256
+        shuffle: false
+        num_workers: 0
+    test:
+        batch_size: 256
+        shuffle: false
+        num_workers: 0
+
     
 
 preprocess:
@@ -33,26 +47,24 @@ preprocess:
         after: 25
 model:
     name: PhaseNet
-    norm: peak
-    phases: 'NPS'
     version_str: '{timestamp}'
+    hyperparameters:
+        norm: peak
+        phases: 'NPS'
 
 path:
     dataset: 'C:\Users\ikahbasi\Documents\DataSets-Local\1405-04-03\Merged_Dataset_2026-06-24T15-15-22'
     model: 'D:\Models\{model.name}_{timestamp}'
 
 train:
-    dataloader:
-        suffle: false
-        batch_size: 256
-        num_workers: 0 # The number of threads used for loading data
     hyperparameters:
         
-        learning_rates: [1e-2]
-        epochs_for_each_learning_rate: [1]
+        learning_rates:
+            - 1e-2
+        epochs_for_each_learning_rate:
+            - 1
         manual_seed: 42
-        norm: peak
-        phases: 'NPS'
+
         lr_scheduler:
             ReduceLROnPlateau:
                 factor: 0.2
