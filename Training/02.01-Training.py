@@ -26,31 +26,53 @@ import SeisRoutine.seisbench as srsb
 import warnings
 warnings.simplefilter('ignore', DeprecationWarning)
 ##########################################################################
-def build_augmentations(config):
+def build_augmentations(config, key='cls'):
     augmentations = []
     for aug in config:
         print(aug)
         aug = aug.to_dict()
-        aug_name = aug['cls']
+        aug_name = aug[key]
         kwargs = aug.copy()
-        kwargs.pop("cls", None)
+        kwargs.pop(key, None)
         augmentations.append(eval(aug_name)(**kwargs))
 
     return augmentations
 
-def make_generator(split_data, augmentations):
-    gen = sbg.GenericGenerator(split_data)
+def make_generator(dataset, augmentations):
+    gen = sbg.GenericGenerator(dataset)
     gen.add_augmentations(augmentations)
     return gen
 
-def loss_fn(y_pred, y_true, eps=1e-5):
+# def loss_func(y_pred, y_true):
+#     """
+#     vector cross entropy loss
+#     """
+
+#     log_probs = torch.log_softmax(y_pred, dim=-1)
+#     h = y_true * log_probs
+#     # Mean along sample dimension and sum along pick dimension
+#     h = h.mean(-1).sum(-1)
+#     # Mean over batch axis
+#     h = h.mean()
+#     return -h
+
+
+def loss_func(y_pred, y_true, eps=1e-5):
     # vector cross entropy loss
     h = y_true * torch.log(y_pred + eps)
-    h = h.mean(-1).sum(-1)  # Mean along sample dimension and sum along pick dimension
-    h = h.mean()  # Mean over batch axis
+    # Mean along sample dimension and sum along pick dimension
+    h = h.mean(-1).sum(-1)
+    # Mean over batch axis
+    h = h.mean()
     return -h
 
-def train_loop(model, dataloader, optimizer):
+
+def train_loop(
+        model,
+        dataloader,
+        optimizer,
+        loss_function,
+    ):
     model.train()
     lst_loss = []
     size = len(dataloader.dataset)
@@ -61,7 +83,7 @@ def train_loop(model, dataloader, optimizer):
         y = batch["y"].to(model.device)
         
         pred = model(X)
-        loss = loss_fn(pred, y)
+        loss = loss_function(pred, y)
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()
@@ -75,6 +97,7 @@ def train_loop(model, dataloader, optimizer):
             subject=f"Training loss: {loss.item():>7f}",
         )
         lst_loss.append(loss.item())
+    
     return lst_loss
 
 def test_loop(dataloader, model):
@@ -87,7 +110,7 @@ def test_loop(dataloader, model):
         for index, batch in enumerate(dataloader):
             # print(index, batch)
             pred = model(batch["X"].to(model.device))
-            test_loss += loss_fn(pred, batch["y"].to(model.device)).item()
+            test_loss += loss_func(pred, batch["y"].to(model.device)).item()
 
     model.train()  # re-open model for training stage
 
@@ -167,16 +190,18 @@ for cfg_project in cfg_projects.projects:
     train, dev, test = dataset.train_dev_test()
     
     generators = {
-        name: make_generator(data, augmentations)
-        for name, data
+        name: make_generator(dataset, augmentations)
+        for name, dataset
         in zip(['train', 'dev', 'test'],
                [train, dev, test])
     }
     
     dataloader = {
-        name: DataLoader(gen,
-                         worker_init_fn=sbu.worker_seeding,
-                         **getattr(cfg.dataloader, name).to_dict())
+        name: DataLoader(
+            gen,
+            worker_init_fn=sbu.worker_seeding,
+            **getattr(cfg.dataloader, name).to_dict()
+        )
         for name, gen
         in generators.items()
     }
@@ -228,7 +253,13 @@ for cfg_project in cfg_projects.projects:
                 model=model,
                 dataloader=dataloader['train'],
                 optimizer=optimizer,
+                loss_function=loss_func,
             )
+            
+            train_loss_avg = np.mean(train_loss)
+            msg = f"Training loss (Average) {train_loss_avg:>7f}"
+            logging.info(msg)
+            
             test_loss = test_loop(
                 dataloader=dataloader['dev'],
                 model=model)
