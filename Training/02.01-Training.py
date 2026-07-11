@@ -229,7 +229,6 @@ def find_ps_pairs(
     return ps_pairs
 
 
-
 def build_augmentations(config):
     augmentations = []
 
@@ -237,8 +236,6 @@ def build_augmentations(config):
         augmentations.append(eval(aug_name)(**kwargs))
 
     return augmentations
-
-
 
 
 ##########################################################################
@@ -291,69 +288,21 @@ for cfg_project in cfg_projects.projects:
     phase_dict = build_phase_mapper(
         dataset.metadata.columns
     )
-    
-    sps = 100
-    augmentation_config = {
-        "Tapering": {},
-
-        "sbg.Normalize": {
-            "demean_axis": -1,
-            "amp_norm_axis": -1,
-            "amp_norm_type": "peak",
-        },
-
-        "sbg.FixedWindow": {
-            "p0": -15 * sps,
-            "windowlen": 60 * sps,
-            "strategy": "pad",
-            "key": "X",
-        },
-
-        "sbg.WindowAroundSample": {
-            "metadata_keys": list(phase_dict.keys()),
-            "samples_before": 2000,
-            "windowlen": 5000,
-            "selection": "random",
-            "strategy": "variable",
-        },
-
-        "sbg.GaussianNoise": {
-            "scale": (0, 0.02),
-            "key": "X",
-        },
-
-        "sbg.RandomWindow": {
-            "windowlen": 3001,
-        },
-
-        "sbg.ChangeDtype": {
-            "dtype": np.float32,
-        },
-
-        "sbg.ProbabilisticLabeller": {
-            "label_columns": phase_dict,
-            "model_labels": "NPS",
-            "sigma": 30,
-            "dim": 0,
-        },
-    }
-    
-    augmentations = build_augmentations(augmentation_config)
-
-    
-    split_ratios = {
-        'train': cfg.dataset.split_ratios.train,
-        'dev':   cfg.dataset.split_ratios.dev,
-        'test':  cfg.dataset.split_ratios.test
-    }
+     
+    cfg_augmentation = cfg.augmentation.to_dict()
+    cfg_augmentation["sbg.WindowAroundSample"]["metadata_keys"] = list(phase_dict.keys())
+    cfg_augmentation["sbg.ProbabilisticLabeller"]["label_columns"] = phase_dict
+    cfg_augmentation["sbg.ChangeDtype"]["dtype"] = eval(cfg_augmentation["sbg.ChangeDtype"]["dtype"])
+    augmentations = build_augmentations(cfg_augmentation)
     
     dataset.metadata['split'] = build_split_column(
         df=dataset.metadata,
         mask='PS-Pairs',
-        split_ratios=split_ratios,
+        split_ratios=cfg.dataset.split_ratios.to_dict(),
         shuffle=True,
         random_state=42,
     )
+
     train, dev, test = dataset.train_dev_test()
     # print(train, dev, test, sep='\n')
     

@@ -69,3 +69,41 @@ train:
             ReduceLROnPlateau:
                 factor: 0.2
                 patience: 3
+
+
+augmentation:
+    Tapering: {}
+
+    sbg.Normalize:
+        demean_axis: -1
+        amp_norm_axis: -1
+        amp_norm_type: peak
+
+    sbg.FixedWindow:
+        p0: -1500          # -15 * sps
+        windowlen: 6000    # 60 * sps
+        strategy: pad
+        key: X
+
+    sbg.WindowAroundSample:
+        metadata_keys: null
+        samples_before: 2000
+        windowlen: 5000
+        selection: random
+        strategy: variable
+
+    sbg.GaussianNoise:
+        scale: [0.0, 0.02]
+        key: X
+
+    sbg.RandomWindow:
+        windowlen: 3001
+
+    sbg.ChangeDtype:
+        dtype: np.float32
+
+    sbg.ProbabilisticLabeller:
+        label_columns: null
+        model_labels: NPS
+        sigma: 30
+        dim: 0
