@@ -25,15 +25,14 @@ warnings.simplefilter('ignore', DeprecationWarning)
 cfg_projects = srconf.Config.load('./Configs/Projects.yml')
 
 for cfg_project in cfg_projects.projects:
-    project = srconf.dict_to_object(cfg_project)
     timestamp = srconf.timestamp()
     cfg = srconf.Config.load(
-        file_path=project.parameters_config_path,
+        file_path=cfg_project.parameters_config_path,
         resolve=True
     )
     context={
         "timestamp": timestamp,
-        "project": project,
+        "project": cfg_project,
     }
     cfg.resolve(context=context)
     
