@@ -11,6 +11,7 @@ import logging
 import os
 import re
 from scipy import signal
+from pathlib import Path
 
 
 ##########################################################################
@@ -23,141 +24,19 @@ for path in lib_path:
     sys.path.append(path)
 
 import SeisRoutine.config as srconf
+import SeisRoutine.seisbench as srsb
+# from SeisRoutine.seisbench.waveform import Tapering
 ##########################################################################
 import warnings
 warnings.simplefilter('ignore', DeprecationWarning)
 ##########################################################################
-class Tapering:
-    def __init__(self, alpha=0.3, key='X'):
-        self.alpha = alpha  # ضریب تیپرینگ
-        if isinstance(key, str):
-            self.key = (key, key)
-        else:
-            self.key = key
+def build_augmentations(config):
+    augmentations = []
 
-    def __call__(self, state_dict):
-        x, metadata = state_dict[self.key[0]]
-        taper = signal.windows.tukey(x.shape[-1], self.alpha)
-        x = x * taper
-        state_dict[self.key[1]] = (x, metadata)
+    for aug_name, kwargs in config.items():
+        augmentations.append(eval(aug_name)(**kwargs))
 
-def build_phase_mapper(
-        columns,
-        families={"P", "S"},
-    ):
-    """
-    Map arrival columns to their phase family.
-
-    Example:
-        trace_Pg_arrival_sample  -> P
-        trace_Pn_arrival_sample  -> P
-        trace_Sg_arrival_sample  -> S
-        trace_Sg 2_arrival_sample -> S
-    """
-    pattern = re.compile(r"^trace_(.+?)_arrival_sample$")
-
-    mapper = {}
-
-    for col in columns:
-        match = pattern.match(col)
-        if not match:
-            continue
-
-        phase = match.group(1).strip()
-        family = phase[0].upper()
-
-        if family in families:
-            mapper[col] = family
-
-    return mapper
-
-
-def build_split_column(
-    df: pd.DataFrame,
-    mask: pd.Series | None = None,
-    split_ratios: dict = None,
-    shuffle: bool = True,
-    random_state: int | None = None,
-    ) -> pd.Series:
-    """
-    Create a train/dev/test split column for a dataset without modifying it in-place.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe.
-
-    mask : pd.Series or None
-        Boolean mask to filter rows before splitting.
-        If None, all rows are used.
-
-    split_ratios : dict
-        Dictionary with keys: 'train', 'dev', 'test'.
-        Values must sum to 1.0.
-
-    shuffle : bool
-        Whether to shuffle rows before splitting.
-
-    random_state : int or None
-        Seed for reproducible shuffling.
-
-    column_name : str
-        Name of the output column.
-
-    Returns
-    -------
-    pd.Series
-        A Series aligned with df.index containing split labels.
-    """
-
-    if split_ratios is None:
-        split_ratios = {
-            "train": 0.9,
-            "dev": 0.05,
-            "test": 0.05,
-        }
-
-    if not np.isclose(sum(split_ratios.values()), 1.0):
-        raise ValueError("split_ratios must sum to 1.0")
-
-    if mask is None:
-        selected_mask = pd.Series(True, index=df.index)
-    elif isinstance(mask, str):
-        if mask not in df.columns:
-            raise KeyError(f"Column '{mask}' not found in dataframe.")
-        selected_mask = df[mask]
-    else:
-        selected_mask = pd.Series(mask, index=df.index)
-
-    if selected_mask.dtype != bool:
-        raise TypeError(
-            "mask must be a boolean Series or the name of a boolean column."
-        )
-
-    selected_idx = df.index[selected_mask].to_numpy()
-
-    selected_idx = np.array(selected_idx)
-
-    if shuffle:
-        rng = np.random.default_rng(random_state)
-        rng.shuffle(selected_idx)
-
-    n_total = len(selected_idx)
-    n_train = int(n_total * split_ratios["train"])
-    n_dev = int(n_total * split_ratios["dev"])
-
-    split = pd.Series(
-        "undefined",
-        index=df.index,
-        name="split"
-    )
-
-    split.loc[selected_idx[: n_train]] = "train"
-    split.loc[selected_idx[n_train: n_train + n_dev]] = "dev"
-    split.loc[selected_idx[n_train + n_dev:]] = "test"
-
-    return split
-
+    return augmentations
 
 def loss_fn(y_pred, y_true, eps=1e-5):
     # vector cross entropy loss
@@ -177,7 +56,6 @@ def train_loop(model, dataloader, optimizer):
         
         pred = model(X)
         loss = loss_fn(pred, y)
-
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()
@@ -187,8 +65,9 @@ def train_loop(model, dataloader, optimizer):
             part=batch_id * batch["X"].shape[0],
             total=size,
             step=5,
-            subject=f"Training loss: {loss:>7f}",
+            subject=f"Training loss: {loss.item():>7f}",
         )
+        lst_loss.append(loss)
     return lst_loss
 
 def test_loop(dataloader, model):
@@ -209,33 +88,6 @@ def test_loop(dataloader, model):
     logging.info(f"Test avg loss: {test_loss:>8f} \n")
     return test_loss
 
-def find_ps_pairs(
-        metadata
-    ):
-    """
-    Return a boolean mask indicating rows that contain
-    both P and S arrival picks.
-    """
-    mapper = build_phase_mapper(metadata.columns)
-
-    p_cols = [col for col, phase in mapper.items() if phase == "P"]
-    s_cols = [col for col, phase in mapper.items() if phase == "S"]
-
-    p_exists = metadata[p_cols].notna().any(axis=1) if p_cols else False
-    s_exists = metadata[s_cols].notna().any(axis=1) if s_cols else False
-
-    ps_pairs = p_exists & s_exists
-
-    return ps_pairs
-
-
-def build_augmentations(config):
-    augmentations = []
-
-    for aug_name, kwargs in config.items():
-        augmentations.append(eval(aug_name)(**kwargs))
-
-    return augmentations
 
 
 ##########################################################################
@@ -277,7 +129,7 @@ for cfg_project in cfg_projects.projects:
         **data_format_tmp
     )
     
-    ps_pair = find_ps_pairs(
+    ps_pair = srsb.dataset.find_ps_pairs(
         metadata=dataset.metadata
         )
     dataset.metadata['PS-Pairs'] = ps_pair
@@ -285,17 +137,21 @@ for cfg_project in cfg_projects.projects:
     
 
 
-    phase_dict = build_phase_mapper(
+    phase_dict = srsb.dataset.build_phase_mapper(
         dataset.metadata.columns
     )
      
     cfg_augmentation = cfg.augmentation.to_dict()
-    cfg_augmentation["sbg.WindowAroundSample"]["metadata_keys"] = list(phase_dict.keys())
+    cfg_augmentation["sbg.WindowAroundSample"]["metadata_keys"] = list(
+        phase_dict.keys()
+    )
     cfg_augmentation["sbg.ProbabilisticLabeller"]["label_columns"] = phase_dict
-    cfg_augmentation["sbg.ChangeDtype"]["dtype"] = eval(cfg_augmentation["sbg.ChangeDtype"]["dtype"])
+    cfg_augmentation["sbg.ChangeDtype"]["dtype"] = eval(
+        cfg_augmentation["sbg.ChangeDtype"]["dtype"]
+    )
     augmentations = build_augmentations(cfg_augmentation)
     
-    dataset.metadata['split'] = build_split_column(
+    dataset.metadata['split'] = srsb.dataset.build_split_column(
         df=dataset.metadata,
         mask='PS-Pairs',
         split_ratios=cfg.dataset.split_ratios.to_dict(),
@@ -317,24 +173,18 @@ for cfg_project in cfg_projects.projects:
     
     train_loader = DataLoader(
         train_generator,
-        batch_size=cfg.dataloader.train.batch_size,
-        shuffle=cfg.dataloader.train.shuffle,
-        num_workers=cfg.dataloader.train.num_workers,
         worker_init_fn=sbu.worker_seeding,
+        **cfg.dataloader.train.to_dict(),
     )
     dev_loader = DataLoader(
         dev_generator,
-        batch_size=cfg.dataloader.validation.batch_size,
-        shuffle=cfg.dataloader.validation.shuffle,
-        num_workers=cfg.dataloader.validation.num_workers,
         worker_init_fn=sbu.worker_seeding,
+        **cfg.dataloader.dev.to_dict(),
     )
     test_loader = DataLoader(
         test_generator,
-        batch_size=cfg.dataloader.test.batch_size,
-        shuffle=cfg.dataloader.test.shuffle,
-        num_workers=cfg.dataloader.test.num_workers,
         worker_init_fn=sbu.worker_seeding,
+        **cfg.dataloader.test.to_dict(),
     )
     
     torch.manual_seed(
@@ -359,27 +209,25 @@ for cfg_project in cfg_projects.projects:
     
     ###
     log_learning = []
-    for learning_rate, epochs in zip(cfg.train.hyperparameters.learning_rates,
-                                     cfg.train.hyperparameters.epochs_for_each_learning_rate):
-        logging.info(f"Main Learning-Rate: {learning_rate}\n" + "-"*70)
+    for learning_rate, epochs in zip(
+            cfg.train.hyperparameters.learning_rates,
+            cfg.train.hyperparameters.epochs_for_each_learning_rate):
+        
+        msg = f"Main Learning-Rate: {learning_rate}"
+        logging.info(msg)
         optimizer = torch.optim.Adam(
             model.parameters(),
-            lr=float(learning_rate),
+            lr=learning_rate,
         )
+        
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer=optimizer,
-            mode='min',
-            factor=cfg.train.hyperparameters.lr_scheduler.ReduceLROnPlateau.factor,
-            patience=cfg.train.hyperparameters.lr_scheduler.ReduceLROnPlateau.patience,
-            threshold=0.0001,
-            threshold_mode='rel',
-            cooldown=0,
-            min_lr=0,
-            eps=1e-08,
+            **cfg.train.hyperparameters.lr_scheduler.ReduceLROnPlateau.to_dict(),
         )
         for epoch in range(epochs):
             learning_rate = scheduler.get_last_lr()[0]
-            logging.info(f"Learning-Rate: {learning_rate} Epoch: {epoch+1}\n" + "-"*70)
+            msg = f"Learning-Rate: {learning_rate} Epoch: {epoch+1}"
+            logging.info(msg)
             train_loss = train_loop(
                 model=model,
                 dataloader=train_loader,
@@ -390,32 +238,31 @@ for cfg_project in cfg_projects.projects:
                 model=model)
             scheduler.step(test_loss)
             #
-            for batch, loss in train_loss:
+            for batch, loss in enumerate(train_loss):
                 dict_tmp = {
                     'epoch': epoch,
-                    'batch': batch,
-                    'loss_train': loss,
+                    'batch': batch+1,
+                    'loss_train': loss.item(),
                     'loss_test': test_loss,
                 }
                 log_learning.append(dict_tmp)
+                
     df_loss = pd.DataFrame(log_learning)
-    os.makedirs(
-        os.path.abspath(cfg.path.model),
-        exist_ok=True
+    
+    path_model = Path(cfg.path.model)
+    path_model.resolve().mkdir(
+        parents=True,
+        exist_ok=True,
     )
     
+    fname = f'loss_{cfg.model.version_str}.csv'
     df_loss.to_csv(
-        os.path.join(
-            cfg.path.model,
-            f'loss_{cfg.model.version_str}.csv'
-        )
+        path_model / fname
     )
     
+    fname = f"{cfg.model.name}_{cfg.model.version_str}"
     model.save(
-        path=os.path.join(
-            cfg.path.model,
-            f"{cfg.model.name}_{cfg.model.version_str}"
-        ),
+        path_model / fname,
         weights_docstring=cfg.__str__(),
         version_str=cfg.model.version_str,
     )

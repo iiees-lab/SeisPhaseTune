@@ -19,7 +19,6 @@ dataset:
         measurement: velocity
         unit: counts
         instrument_response: not restituted
-    suffle: true
     split_ratios:
         train: 0.8
         dev: 0.1
@@ -30,7 +29,7 @@ dataloader:
         batch_size: 256
         shuffle: true
         num_workers: 0
-    validation:
+    dev:
         batch_size: 256
         shuffle: false
         num_workers: 0
@@ -39,41 +38,9 @@ dataloader:
         shuffle: false
         num_workers: 0
 
-    
-
-preprocess:
-    trim:
-        before: 5
-        after: 25
-model:
-    name: PhaseNet
-    version_str: '{timestamp}'
-    hyperparameters:
-        norm: peak
-        phases: 'NPS'
-
-path:
-    dataset: 'C:\Users\ikahbasi\Documents\DataSets-Local\1405-04-03\Merged_Dataset_2026-06-24T15-15-22'
-    model: 'D:\Models\{model.name}_{timestamp}'
-
-train:
-    hyperparameters:
-        
-        learning_rates:
-            - 1e-2
-        epochs_for_each_learning_rate:
-            - 1
-        manual_seed: 42
-
-        lr_scheduler:
-            ReduceLROnPlateau:
-                factor: 0.2
-                patience: 3
-
-
 augmentation:
-    Tapering: {}
-
+    srsb.waveform.Tapering: {}
+    
     sbg.Normalize:
         demean_axis: -1
         amp_norm_axis: -1
@@ -107,3 +74,38 @@ augmentation:
         model_labels: NPS
         sigma: 30
         dim: 0
+
+preprocess:
+    trim:
+        before: 5
+        after: 25
+
+model:
+    name: PhaseNet
+    version_str: '{timestamp}'
+    hyperparameters:
+        norm: peak
+        phases: 'NPS'
+
+path:
+    dataset: 'C:\Users\ikahbasi\Documents\DataSets-Local\1405-04-03\Merged_Dataset_2026-06-24T15-15-22'
+    model: 'D:\Models\{model.name}_{timestamp}'
+
+train:
+    hyperparameters:
+        learning_rates:
+            - 1.0e-2
+        epochs_for_each_learning_rate:
+            - 1
+        manual_seed: 42
+
+        lr_scheduler:
+            ReduceLROnPlateau:
+                mode: min
+                factor: 0.2
+                patience: 3
+                threshold: 1.0e-4
+                threshold_mode: rel
+                cooldown: 0
+                min_lr: 0
+                eps: 1.0e-08
