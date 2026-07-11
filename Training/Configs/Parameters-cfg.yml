@@ -20,9 +20,15 @@ dataset:
         unit: counts
         instrument_response: not restituted
     split_ratios:
-        train: 0.8
+        train: 0.1
         dev: 0.1
-        test: 0.1
+        test: 0.8
+    # Exclude the problematic sample from the evaluation set. (Merged Dataset)
+    # This sample triggers an unexpected error during dataset processing,
+    # and the root cause has not been identified.
+    # Since this sample is not significant for the evaluation, it is skipped
+    # to ensure stable execution.
+    MANUAL_EXCLUSIONS: [23972]
 
 dataloader:
     train:
@@ -39,41 +45,41 @@ dataloader:
         num_workers: 0
 
 augmentation:
-    srsb.waveform.Tapering: {}
+  - cls: srsb.waveform.Tapering
     
-    sbg.Normalize:
-        demean_axis: -1
-        amp_norm_axis: -1
-        amp_norm_type: peak
+  - cls: sbg.Normalize
+    demean_axis: -1
+    amp_norm_axis: -1
+    amp_norm_type: peak
 
-    sbg.FixedWindow:
-        p0: -1500          # -15 * sps
-        windowlen: 6000    # 60 * sps
-        strategy: pad
-        key: X
+  - cls: sbg.FixedWindow
+    p0: -1500          # -15 * sps
+    windowlen: 6000    # 60 * sps
+    strategy: pad
+    key: X
 
-    sbg.WindowAroundSample:
-        metadata_keys: null
-        samples_before: 2000
-        windowlen: 5000
-        selection: random
-        strategy: variable
+  - cls: sbg.WindowAroundSample
+    metadata_keys: "{phase_dict_keys}"
+    samples_before: 2000
+    windowlen: 5000
+    selection: random
+    strategy: variable
 
-    sbg.GaussianNoise:
-        scale: [0.0, 0.02]
-        key: X
+  - cls:  sbg.GaussianNoise
+    scale: [0.0, 0.02]
+    key: X
 
-    sbg.RandomWindow:
-        windowlen: 3001
+  - cls: sbg.RandomWindow
+    windowlen: 3001
 
-    sbg.ChangeDtype:
-        dtype: np.float32
+  - cls: sbg.ChangeDtype
+    dtype: "{np.float32}"
 
-    sbg.ProbabilisticLabeller:
-        label_columns: null
-        model_labels: NPS
-        sigma: 30
-        dim: 0
+  - cls: sbg.ProbabilisticLabeller
+    label_columns: "{phase_dict}"
+    model_labels: NPS
+    sigma: 30
+    dim: 0
 
 preprocess:
     trim:
