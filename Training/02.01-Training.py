@@ -228,6 +228,19 @@ def find_ps_pairs(
 
     return ps_pairs
 
+
+
+def build_augmentations(config):
+    augmentations = []
+
+    for aug_name, kwargs in config.items():
+        augmentations.append(eval(aug_name)(**kwargs))
+
+    return augmentations
+
+
+
+
 ##########################################################################
 
 cfg_projects = srconf.Config.load('./Configs/Projects.yml')
@@ -280,43 +293,53 @@ for cfg_project in cfg_projects.projects:
     )
     
     sps = 100
-    augmentations = [
-        Tapering(),
-        sbg.Normalize(
-            demean_axis=-1,
-            amp_norm_axis=-1,
-            amp_norm_type="peak",
-        ),
-        sbg.FixedWindow(
-            p0=-15*sps,
-            windowlen=1*60*sps,
-            strategy="pad",
-            key='X',
-        ),
-        sbg.WindowAroundSample(
-            metadata_keys=list(phase_dict.keys()),
-            samples_before=2000,
-            windowlen=5000,
-            selection="random",
-            strategy="variable",
-        ),
-        sbg.GaussianNoise(
-            scale=(0, 0.02),
-            key='X',
-        ),
-        sbg.RandomWindow(
-            windowlen=3001,
-        ),
-        sbg.ChangeDtype(
-            np.float32
-        ),
-        sbg.ProbabilisticLabeller(
-            label_columns=phase_dict,
-            model_labels=cfg.model.hyperparameters.phases,
-            sigma=30,
-            dim=0,
-        ),
-    ]
+    augmentation_config = {
+        "Tapering": {},
+
+        "sbg.Normalize": {
+            "demean_axis": -1,
+            "amp_norm_axis": -1,
+            "amp_norm_type": "peak",
+        },
+
+        "sbg.FixedWindow": {
+            "p0": -15 * sps,
+            "windowlen": 60 * sps,
+            "strategy": "pad",
+            "key": "X",
+        },
+
+        "sbg.WindowAroundSample": {
+            "metadata_keys": list(phase_dict.keys()),
+            "samples_before": 2000,
+            "windowlen": 5000,
+            "selection": "random",
+            "strategy": "variable",
+        },
+
+        "sbg.GaussianNoise": {
+            "scale": (0, 0.02),
+            "key": "X",
+        },
+
+        "sbg.RandomWindow": {
+            "windowlen": 3001,
+        },
+
+        "sbg.ChangeDtype": {
+            "dtype": np.float32,
+        },
+
+        "sbg.ProbabilisticLabeller": {
+            "label_columns": phase_dict,
+            "model_labels": "NPS",
+            "sigma": 30,
+            "dim": 0,
+        },
+    }
+    
+    augmentations = build_augmentations(augmentation_config)
+
     
     split_ratios = {
         'train': cfg.dataset.split_ratios.train,
