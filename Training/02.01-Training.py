@@ -29,7 +29,7 @@ warnings.simplefilter('ignore', DeprecationWarning)
 def build_augmentations(config, key='cls'):
     augmentations = []
     for aug in config:
-        print(aug)
+        logging.info(aug)
         aug = aug.to_dict()
         aug_name = aug[key]
         kwargs = aug.copy()
@@ -42,19 +42,6 @@ def make_generator(dataset, augmentations):
     gen = sbg.GenericGenerator(dataset)
     gen.add_augmentations(augmentations)
     return gen
-
-# def loss_func(y_pred, y_true):
-#     """
-#     vector cross entropy loss
-#     """
-
-#     log_probs = torch.log_softmax(y_pred, dim=-1)
-#     h = y_true * log_probs
-#     # Mean along sample dimension and sum along pick dimension
-#     h = h.mean(-1).sum(-1)
-#     # Mean over batch axis
-#     h = h.mean()
-#     return -h
 
 
 def loss_func(y_pred, y_true, eps=1e-5):
@@ -152,7 +139,7 @@ for cfg_project in cfg_projects.projects:
     
     data_format = cfg.to_dict()['dataset']['data_format']
     data_format_tmp = data_format.copy()
-    data_format_tmp.pop('dimension_order')
+    # data_format_tmp.pop('dimension_order')
     dataset = WaveformDataset(
         path=cfg.path.dataset,
         **data_format_tmp
@@ -249,30 +236,32 @@ for cfg_project in cfg_projects.projects:
             current_lr  = scheduler.get_last_lr()[0]
             msg = f"Learning-Rate: {current_lr} Epoch: {epoch}"
             logging.info(msg)
-            train_loss = train_loop(
+            loss_train_lst = train_loop(
                 model=model,
                 dataloader=dataloader['train'],
                 optimizer=optimizer,
                 loss_function=loss_func,
             )
             
-            train_loss_avg = np.mean(train_loss)
+            train_loss_avg = np.mean(loss_train_lst)
             msg = f"Training loss (Average) {train_loss_avg:>7f}"
             logging.info(msg)
             
-            test_loss = test_loop(
+            loss_test = test_loop(
                 dataloader=dataloader['dev'],
                 model=model)
-            scheduler.step(test_loss)
+            scheduler.step(loss_test)
             #
-            for batch, loss in enumerate(train_loss, start=1):
+            for batch, loss_train in enumerate(loss_train_lst, start=1):
                 log_entry = {
                     'stage': stage_idx,
                     'epoch': epoch,
                     'batch': batch,
                     'lr': current_lr,
-                    'loss_train': loss,
-                    'loss_test': test_loss,
+                    'loss_train': loss_train,
+                    'loss_test': (loss_test
+                                  if batch == len(loss_train_lst)
+                                  else np.nan),
                 }
                 log_learning.append(log_entry)
                 
