@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 ##########################################################################
 
-filepath = r"D:/Models/PhaseNet_2026-07-13T12-28-24/loss_2026-07-13T12-28-24.csv"
+filepath = r"D:/Models/PhaseNet_2026-07-13T15-53-06/loss_2026-07-13T15-53-06.csv"
 df = pd.read_csv(filepath)
 
 
@@ -18,15 +18,15 @@ fig, ax = plt.subplots(figsize=(10, 5))
 # -------------------------
 ax.plot(
     df["global_step"],
-    df["loss_train"],
+    df["train_loss"],
     label="Train Loss"
 )
 
-test_df = df[df["loss_test"].notna()]
+test_df = df[df["test_loss"].notna()]
 
 ax.scatter(
     test_df["global_step"],
-    test_df["loss_test"],
+    test_df["test_loss"],
     label="Test Loss",
     zorder=3,
     color='r',
@@ -90,5 +90,6 @@ ax.legend(
 )
 
 
+ax.set_yscale('log')
 plt.tight_layout()
 plt.show()
