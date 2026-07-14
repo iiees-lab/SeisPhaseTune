@@ -1,8 +1,6 @@
 from seisbench.data import WaveformDataset
 
-import seisbench.generate as sbg
 import seisbench.util as sbu
-import seisbench.models as sbm
 import numpy as np
 import pandas as pd
 import torch
@@ -26,22 +24,6 @@ import SeisRoutine.seisbench as srsb
 import warnings
 warnings.simplefilter('ignore', DeprecationWarning)
 ##########################################################################
-def build_augmentations(config, key='cls'):
-    augmentations = []
-    for aug in config:
-        logging.info(aug)
-        aug = aug.to_dict()
-        aug_name = aug[key]
-        kwargs = aug.copy()
-        kwargs.pop(key, None)
-        augmentations.append(eval(aug_name)(**kwargs))
-
-    return augmentations
-
-def make_generator(dataset, augmentations):
-    gen = sbg.GenericGenerator(dataset)
-    gen.add_augmentations(augmentations)
-    return gen
 
 
 def loss_func(y_pred, y_true, eps=1e-5):
@@ -104,104 +86,6 @@ def validation_loop(dataloader, model):
     test_loss /= num_batches
     logging.info(f"Test avg loss: {test_loss:>8f}")
     return test_loss
-
-
-def save_checkpoint(
-    path,
-    model,
-    optimizer,
-    scheduler,
-    stage,
-    epoch,
-    val_loss,
-    ):
-    """Save a complete training checkpoint."""
-
-    checkpoint = {
-        "stage": stage,
-        "epoch": epoch,
-        "val_loss": val_loss,
-        "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict(),
-        "scheduler_state_dict": scheduler.state_dict(),
-    }
-
-    torch.save(checkpoint, path)
-    
-    
-def load_checkpoint(
-    path,
-    model,
-    optimizer=None,
-    scheduler=None,
-    ):
-    """Load a training checkpoint."""
-
-    checkpoint = torch.load(path, map_location=model.device)
-
-    model.load_state_dict(checkpoint["model_state_dict"])
-
-    if optimizer is not None:
-        optimizer.load_state_dict(
-            checkpoint["optimizer_state_dict"]
-        )
-
-    if scheduler is not None:
-        scheduler.load_state_dict(
-            checkpoint["scheduler_state_dict"]
-        )
-
-    return checkpoint
-
-
-class EarlyStopping:
-    def __init__(
-        self,
-        patience=10,
-        min_improvement_percent=10,
-        ):
-        """
-        min_improvement_percent:
-            Minimum relative decrease in validation loss (%)
-        """
-        
-        self.patience = patience
-        self.min_improvement_percent = min_improvement_percent
-        self.counter = 0
-        self.best_loss = None
-        
-    def check(
-            self,
-            loss,
-        ):
-        if self.best_loss is None:
-            self.best_loss = loss
-            self.counter = 0
-            msg = (
-                "EarlyStopping, "
-                "initialized with first validation loss, "
-                f"{self.counter}/{self.patience}."
-            )
-            logging.info(msg)
-            return False
-
-        improvement = (self.best_loss - loss) / self.best_loss * 100
-        if improvement >= self.min_improvement_percent:
-            self.best_loss = loss
-            self.counter = 0
-        else:
-            self.counter += 1
-
-        msg = (
-            "EarlyStopping, "
-            f"{improvement = :>4.2f}%, "
-            f"{self.counter}/{self.patience}."
-        )
-        logging.info(msg)
-        stop = self.counter >= self.patience
-        
-        return stop
-
 ##########################################################################
 
 cfg_projects = srconf.Config.load('./Configs/Projects.yml')
@@ -234,7 +118,6 @@ for cfg_project in cfg_projects.projects:
     
     data_format = cfg.to_dict()['dataset']['data_format']
     data_format_tmp = data_format.copy()
-    # data_format_tmp.pop('dimension_order')
     dataset = WaveformDataset(
         path=cfg.path.dataset,
         **data_format_tmp
@@ -259,7 +142,7 @@ for cfg_project in cfg_projects.projects:
     }
     cfg.resolve(context=context)
     # cfg_augmentation = cfg.augmentation.to_dict()
-    augmentations = build_augmentations(cfg.augmentation)
+    augmentations = srsb.dataset.build_augmentations(cfg.augmentation)
     
     dataset.metadata['split'] = srsb.dataset.build_split_column(
         df=dataset.metadata,
@@ -272,7 +155,7 @@ for cfg_project in cfg_projects.projects:
     train, dev, test = dataset.train_dev_test()
     
     generators = {
-        name: make_generator(dataset, augmentations)
+        name: srsb.dataset.make_generator(dataset, augmentations)
         for name, dataset
         in zip(['train', 'dev', 'test'],
                [train, dev, test])
@@ -289,16 +172,20 @@ for cfg_project in cfg_projects.projects:
     }
     
     torch.manual_seed(
-        cfg.train.hyperparameters.manual_seed
+        cfg.seed
     )
     
-    model_cls = getattr(
-        sbm,
-        cfg.model.name,
-    )
-    model = model_cls(
+    model = srconf.ObjectFactory.create(
+        obj_str=cfg.model.cls,
         **cfg.model.hyperparameters.to_dict(),
     )
+    if cfg.model.weights_type != "scratch":
+        msg = (
+            "Training model "
+            f"using {cfg.model.weights_type} weight initialization"
+        )
+        logging.info(msg)
+        model = model.from_pretrained(cfg.model.weights_type)
     
     if torch.cuda.is_available():
         model.cuda()
@@ -311,31 +198,37 @@ for cfg_project in cfg_projects.projects:
     model_path = Path(cfg.path.model)
     best_checkpoint_path = model_path / "best.ckpt"
     last_checkpoint_path = model_path / "last.ckpt"
-    best_val_loss = np.inf
     ###
     log_learning = []
-    for stage_idx, (base_lr, epochs) in enumerate(zip(
-            cfg.train.hyperparameters.lr_per_stage,
-            cfg.train.hyperparameters.epochs_per_stage)):
-        
-        msg = f"Main Learning-Rate: {base_lr}"
+    best_val_loss = np.inf
+    for stage_idx, stage_cfg in enumerate(cfg.train_stages):
+        msg = f"Training starts on {stage_cfg.name}"
         logging.info(msg)
         
-        optimizer = torch.optim.Adam(
-            model.parameters(),
-            lr=base_lr,
+        object_params = stage_cfg.optimizer.to_dict()
+        object_name = object_params.pop("cls")
+        optimizer = srconf.ObjectFactory.create(
+            obj_str=object_name,
+            params=model.parameters(),
+            **object_params,
         )
         
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        object_params = stage_cfg.lr_scheduler.to_dict()
+        object_name = object_params.pop("cls")
+        scheduler = srconf.ObjectFactory.create(
+            obj_str=object_name,
             optimizer=optimizer,
-            **cfg.train.hyperparameters.lr_scheduler.ReduceLROnPlateau.to_dict(),
+            **object_params,
         )
         
-        early_stopping = EarlyStopping(
-            **cfg.train.hyperparameters.early_stopping.to_dict()
+        object_params = stage_cfg.early_stopping.to_dict()
+        object_name = object_params.pop("cls")
+        early_stopping = srconf.ObjectFactory.create(
+            obj_str=object_name,
+            **object_params,
         )
-        for epoch in range(epochs):
-            epoch += 1
+        
+        for epoch in range(1, stage_cfg.epochs+1):
             current_lr = scheduler.get_last_lr()[0]
             msg = f"Learning-Rate: {current_lr} Epoch: {epoch}"
             logging.info(msg)
@@ -371,7 +264,7 @@ for cfg_project in cfg_projects.projects:
             ####################################
             ###### Check Point Block: start
             ####################################
-            save_checkpoint(
+            srsb.training.save_checkpoint(
                 path=last_checkpoint_path,
                 model=model,
                 optimizer=optimizer,
@@ -385,7 +278,7 @@ for cfg_project in cfg_projects.projects:
             if test_loss < best_val_loss:
                 best_val_loss = test_loss
             
-                save_checkpoint(
+                srsb.training.save_checkpoint(
                     path=best_checkpoint_path,
                     model=model,
                     optimizer=optimizer,
@@ -428,7 +321,7 @@ for cfg_project in cfg_projects.projects:
         model_path / fname
     )
     
-    fname = f"{cfg.model.name}_{cfg.model.version_str}"
+    fname = f"{cfg.model.cls}_{cfg.model.version_str}"
     model.save(
         model_path / fname,
         weights_docstring=cfg.__str__(),

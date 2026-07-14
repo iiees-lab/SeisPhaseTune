@@ -13,22 +13,23 @@ log:
 
 dataset:
     data_format:
-        dimension_order: CW
+        # https://seisbench.readthedocs.io/en/stable/pages/data/data_format.html#the-data-format-group
+        dimension_order: NCW
         component_order: ZNE
         sampling_rate: 100
         measurement: velocity
         unit: counts
         instrument_response: not restituted
     split_ratios:
-        train: 0.1
+        train: 0.05
         dev: 0.1
-        test: 0.8
-    # Exclude the problematic sample from the evaluation set. (Merged Dataset)
+        test: 0.85
+    # Exclude the problematic sample from the DataSet. (Merged Dataset)
     # This sample triggers an unexpected error during dataset processing,
     # and the root cause has not been identified.
     # Since this sample is not significant for the evaluation, it is skipped
     # to ensure stable execution.
-    MANUAL_EXCLUSIONS: [23972]
+    manual_excluded_samples: [23972]
 
 dataloader:
     train:
@@ -45,49 +46,47 @@ dataloader:
         num_workers: 0
 
 augmentation:
-  - cls: srsb.waveform.Tapering
+  - cls: SeisRoutine.seisbench.waveform.Tapering
     
-  - cls: sbg.Normalize
+  - cls: seisbench.generate.Normalize
     demean_axis: -1
     amp_norm_axis: -1
     amp_norm_type: peak
 
-  - cls: sbg.FixedWindow
+  - cls: seisbench.generate.FixedWindow
     p0: -1500          # -15 * sps
     windowlen: 6000    # 60 * sps
     strategy: pad
     key: X
 
-  - cls: sbg.WindowAroundSample
+  - cls: seisbench.generate.WindowAroundSample
     metadata_keys: "{phase_dict_keys}"
     samples_before: 2000
     windowlen: 5000
     selection: random
     strategy: variable
 
-  - cls:  sbg.GaussianNoise
+  - cls:  seisbench.generate.GaussianNoise
     scale: [0.0, 0.02]
     key: X
 
-  - cls: sbg.RandomWindow
+  - cls: seisbench.generate.RandomWindow
     windowlen: 3001
 
-  - cls: sbg.ChangeDtype
+  - cls: seisbench.generate.ChangeDtype
     dtype: "{np.float32}"
 
-  - cls: sbg.ProbabilisticLabeller
+  - cls: seisbench.generate.ProbabilisticLabeller
     label_columns: "{phase_dict}"
     model_labels: NPS
     sigma: 30
     dim: 0
 
-preprocess:
-    trim:
-        before: 5
-        after: 25
+seed: 42
 
 model:
-    name: PhaseNet
+    cls: seisbench.models.PhaseNet
+    weights_type: original # "scratch", "original", or etc. 
     version_str: '{timestamp}'
     hyperparameters:
         norm: peak
@@ -95,23 +94,25 @@ model:
 
 path:
     dataset: 'C:\Users\ikahbasi\Documents\DataSets-Local\1405-04-03\Merged_Dataset_2026-06-24T15-15-22'
-    model: 'D:\Models\{model.name}_{timestamp}'
+    model: 'D:\Models\{model.cls}_{timestamp}'
 
-train:
-    hyperparameters:
-        learning_rates:
-            - 1.0e-2
-        epochs_for_each_learning_rate:
-            - 1
-        manual_seed: 42
-
-        lr_scheduler:
-            ReduceLROnPlateau:
-                mode: min
-                factor: 0.2
-                patience: 3
-                threshold: 1.0e-4
-                threshold_mode: rel
-                cooldown: 0
-                min_lr: 0
-                eps: 1.0e-08
+train_stages:
+  - name: stage1
+    optimizer:
+        cls: torch.optim.Adam
+        lr: 1.0e-4
+    epochs: 1
+    lr_scheduler:
+        cls: torch.optim.lr_scheduler.ReduceLROnPlateau
+        mode: min
+        factor: 0.2
+        patience: 3
+        threshold: 1.0e-4
+        threshold_mode: rel
+        cooldown: 0
+        min_lr: 0
+        eps: 1.0e-08
+    early_stopping:
+        cls: SeisRoutine.seisbench.training.EarlyStopping
+        patience: 10
+        min_improvement_percent: 10
