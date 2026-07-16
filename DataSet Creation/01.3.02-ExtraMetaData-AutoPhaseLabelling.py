@@ -182,29 +182,3 @@ metadata.to_csv(
 metadata.to_pickle(
     output_path / cfg.auto_picker.file_name.replace('.csv', '.pkl')
 )
-
-# from obspy import read
-# st = read()
-# st.trim(
-#     starttime=st[0].stats.starttime-15,
-#     endtime=st[0].stats.endtime+15,
-#     pad=True,
-#     fill_value=0,
-# )
-# st.normalize()
-
-# X = np.array([tr.data for tr in st])
-# X = torch.tensor(X, device=model.device, dtype=torch.float32).unsqueeze(0)
-# y_pred = model(X)
-# y_pred = y_pred.squeeze(0).detach().cpu().numpy()
-# plt.plot(y_pred.T)
-
-# import matplotlib.pyplot as plt
-# X = batch["X"]
-# y = batch["y"]
-# ii = 10
-# X = X.detach().cpu().numpy()
-# y = y.detach().cpu().numpy()
-# plt.plot(X[ii].T); plt.show()
-# plt.plot(y[ii].T); plt.show()
-# plt.plot(pred_arr[ii].T); plt.show()
