@@ -95,17 +95,17 @@ for phase in phases:
     elif key == "Manual_Pick_S":
         df[key] = df[key].apply(agg_func_s)
 
-output_path = Path(cfg.ps_selection.output_path)
+output_path = Path(cfg.ps_selection.file_path)
 output_path.mkdir(parents=True, exist_ok=True)
 
 df = df[cfg.dataset.desired_columns+keys]
 
 df.to_csv(
-    output_path / cfg.ps_selection.output_name
+    output_path / cfg.ps_selection.file_name
 ) 
 
 df.to_pickle(
-    output_path / cfg.ps_selection.output_name.replace('.csv', '.pkl')
+    output_path / cfg.ps_selection.file_name.replace('.csv', '.pkl')
 )
 
        

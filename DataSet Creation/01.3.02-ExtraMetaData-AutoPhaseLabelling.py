@@ -156,7 +156,6 @@ for sample_index, row in tqdm.tqdm(dataset.metadata.iterrows(),
         with torch.no_grad():
             y_pred = model(X)
         y_pred = standardize_output(y_pred, model)
-        # y_pred = y_pred.squeeze(0).detach().cpu().numpy()
         
         for hint, y_p in zip("NPS", y_pred):
             if hint in "N":
