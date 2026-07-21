@@ -1,0 +1,87 @@
+#jupyter nbconvert --execute --to html test-run-with-command-line.ipynb
+#jupyter nbconvert --to ipynb --execute ./test-run-with-command-line.ipynb --output "1403-08-27.ipynb"
+log:
+    level: INFO
+    format: "%(asctime)s | %(levelname)s | %(message)s"
+    mode: both
+    colored_console: True
+    # Note: The name and path of the log file are set in the settings section for each code.
+    filepath: "{dataset.path}/log" # Set in the subset config.
+    filename_prefix: ""
+    filename: "{project.name}_{timestamp}" # if set to "now", the current date set as the logfile name.
+    filename_timestamp: null
+
+seed: 42
+
+dataset:
+    path: 'D:\DataSets-Local\1405-04-03\Merged_Dataset_2026-06-24T15-15-22'
+    extra_metadata_dir: Extra_MetaData
+    data_format:
+        # https://seisbench.readthedocs.io/en/stable/pages/data/data_format.html#the-data-format-group
+        dimension_order: NCW
+        component_order: ZNE
+        sampling_rate: 100
+        measurement: velocity
+        unit: counts
+        instrument_response: not restituted
+    manual_excluded_samples: [23972]
+    desired_columns: ["trace_name", "source_origin_time"]
+
+auto_picker:
+    file_path: "{dataset.path}/{dataset.extra_metadata_dir}"
+    file_name: auto_picker.csv
+    augmentation:
+      - cls: SeisRoutine.seisbench.waveform.Tapering
+
+      - cls: seisbench.generate.FixedWindow
+        p0: -1500          # -15 * sps
+        windowlen: 6000    # 60 * sps
+        strategy: pad
+        key: X
+
+      - cls: seisbench.generate.ChangeDtype
+        dtype: "{np.float32}"
+
+      - cls: seisbench.generate.ProbabilisticLabeller
+        label_columns: "{phase_dict}"
+        model_labels: NPS
+        sigma: 30
+        dim: 0
+    dl:
+      # - cls: seisbench.models.BasicPhaseAE
+        # weights_type: iquique
+
+      - cls: seisbench.models.EQTransformer
+        weights_type: original
+        
+      # - cls: seisbench.models.GPD
+        # weights_type: original
+
+      - cls: seisbench.models.PhaseNet
+        weights_type: original
+        # cls_inputs:
+            # batch_size: 256
+            # overlap: 1500
+            # stacking: avg
+            # stride: 1
+            # strict: False
+            # flexible_horizontal_components: True
+            # zerophase_resample: True
+            # p_threshold: 0.3
+            # s_threshold: 0.3
+            # blinding: (0, 0)
+
+ps_selection:
+    file_path: "{dataset.path}/{dataset.extra_metadata_dir}"
+    file_name: PS_selected.csv
+    
+path:
+    model: 'D:\Models\{model.cls}_{timestamp}'
+    
+merge_dataset:
+    output_dataset: D:\DataSets-Local\1405-04-03\Merged_Dataset_2026-06-24T15-15-22
+    input_datasets:
+      - D:\DataSets-Local\1405-04-03\Ahar-Dataset_2026-06-24T13-01-38
+      - D:\DataSets-Local\1405-04-03\Kaki-Dataset_2026-06-24T13-26-29
+      - D:\DataSets-Local\1405-04-03\Qeshm-Dataset_2026-06-24T13-37-10
+      - D:\DataSets-Local\1405-04-03\Ilam-Dataset_2026-06-24T13-11-20

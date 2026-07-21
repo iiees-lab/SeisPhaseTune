@@ -15,3 +15,7 @@ projects:
     network: QM
     channel: HH
     parameters_config_path: ./Configs/Parameters-cfg.yml
+
+extra_parameters:
+    name: Dataset Extra Parameters
+    parameters_config_path: ./Configs/DataSet-Extra-Parameters-cfg.yml

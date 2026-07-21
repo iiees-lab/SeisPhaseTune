@@ -156,9 +156,8 @@ for cfg_project in cfg_projects.projects:
     
     generators = {
         name: srsb.dataset.make_generator(dataset, augmentations)
-        for name, dataset
-        in zip(['train', 'dev', 'test'],
-               [train, dev, test])
+        for name, dataset in zip(['train', 'dev', 'test'],
+                                 [train, dev, test])
     }
     
     dataloader = {
@@ -167,8 +166,7 @@ for cfg_project in cfg_projects.projects:
             worker_init_fn=sbu.worker_seeding,
             **getattr(cfg.dataloader, name).to_dict()
         )
-        for name, gen
-        in generators.items()
+        for name, gen in generators.items()
     }
     
     torch.manual_seed(
@@ -253,9 +251,8 @@ for cfg_project in cfg_projects.projects:
             ###### Early Stop Block: start
             ####################################
             if early_stopping.check(loss=test_loss):
-                logging.info(
-                    f"Early stopping at Stage {stage_idx}, Epoch {epoch}"
-                )
+                msg =  f"Early stopping at Stage {stage_idx}, Epoch {epoch}"
+                logging.info(msg)
                 break
             ####################################
             ###### Early Stop Block: end
@@ -287,11 +284,12 @@ for cfg_project in cfg_projects.projects:
                     epoch=epoch,
                     val_loss=best_val_loss,
                 )
-            
-                logging.info(
+                
+                msg = (
                     f"New best model saved "
                     f"(Validation Loss = {best_val_loss:.6f})"
                 )
+                logging.info(msg)
             #
             ####################################
             ###### Check Point Block: End
