@@ -8,6 +8,7 @@ for path in lib_path:
 import SeisRoutine.config as srconf
 import SeisRoutine.seisbench as srsb
 ##########################################################################
+import seisbench.data as sbd
 from seisbench.data import WaveformDataset
 ##########################################################################
 import numpy as np
@@ -33,7 +34,10 @@ def standardize_output(pred, dl_picker):
         return np.vstack(arrs)  # [3, N]
 
     else:
-        raise ValueError(f"Unknown model: {dl_picker.name}")
+        if isinstance(pred, torch.Tensor):
+            pred = pred.detach().cpu().numpy().squeeze()
+        return pred
+        # raise ValueError(f"Unknown model: {dl_picker.name}")
 
 def find_peaks_in_segments(x, threshold):
     x = np.asarray(x)
@@ -60,8 +64,10 @@ def find_peaks_in_segments(x, threshold):
         local_idx = np.argmax(segment)
         peak_indices.append(s + local_idx)
         peak_values.append(segment[local_idx])
+        
+    
 
-    return np.array(peak_indices), np.array(peak_values)
+    return np.atleast_1d(peak_indices), np.atleast_1d(peak_values)
 
 cfg_projects = srconf.Config.load('./Configs/Projects.yml')
 cfg_project = cfg_projects.extra_parameters
@@ -168,7 +174,7 @@ for sample_index, row in tqdm.tqdm(dataset.metadata.iterrows(),
             key_autolabel_df = f"{model_id}_{model_threshold}_{hint}"
             if key_autolabel_df not in metadata.columns:
                 metadata[key_autolabel_df] = pd.Series(dtype=object)
-            metadata.at[sample_index, key_autolabel_df] = index_pred - p0
+            metadata.at[sample_index, key_autolabel_df] = index_pred + p0
 
 
 output_path = Path(cfg.auto_picker.file_path)
