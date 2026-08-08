@@ -144,6 +144,12 @@ p0 = [
 
 metadata = dataset.metadata[cfg.dataset.desired_columns].copy()
 
+output_path = Path(cfg.auto_picker.file_path)
+output_path.mkdir(parents=True, exist_ok=True)
+
+checkpoint_loop = 100
+checkpoint_ii = 0
+
 for sample_index, row in tqdm.tqdm(dataset.metadata.iterrows(),
                                    total=len(dataset.metadata),
                                    ):
@@ -176,14 +182,13 @@ for sample_index, row in tqdm.tqdm(dataset.metadata.iterrows(),
                 metadata[key_autolabel_df] = pd.Series(dtype=object)
             metadata.at[sample_index, key_autolabel_df] = index_pred + p0
 
-
-output_path = Path(cfg.auto_picker.file_path)
-output_path.mkdir(parents=True, exist_ok=True)
-
-metadata.to_csv(
-    output_path / cfg.auto_picker.file_name
-)
-
-metadata.to_pickle(
-    output_path / cfg.auto_picker.file_name.replace('.csv', '.pkl')
-)
+    checkpoint_ii += 1
+    if checkpoint_ii == checkpoint_loop:
+        metadata.to_csv(
+            output_path / cfg.auto_picker.file_name
+        )
+        
+        metadata.to_pickle(
+            output_path / cfg.auto_picker.file_name.replace('.csv', '.pkl')
+        )
+        checkpoint_ii = 0
