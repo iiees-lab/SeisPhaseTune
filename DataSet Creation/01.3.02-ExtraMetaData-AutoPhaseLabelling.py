@@ -142,17 +142,26 @@ p0 = [
     if aug.cls == 'seisbench.generate.FixedWindow'
 ][0].p0
 
-metadata = dataset.metadata[cfg.dataset.desired_columns].copy()
 
 output_path = Path(cfg.auto_picker.file_path)
 output_path.mkdir(parents=True, exist_ok=True)
 
-checkpoint_loop = 100
+try:
+    metadata_last_run = pd.read_pickle(output_path / cfg.auto_picker.file_name.replace('.csv', '.pkl'))
+    metadata = metadata_last_run.copy()
+    last_valid_index = metadata_last_run['PhaseNet_original_0.3_P'].last_valid_index()
+except FileNotFoundError:
+    last_valid_index = 0
+    metadata = dataset.metadata[cfg.dataset.desired_columns].copy()
+
+checkpoint_loop = 1000
 checkpoint_ii = 0
 
 for sample_index, row in tqdm.tqdm(dataset.metadata.iterrows(),
                                    total=len(dataset.metadata),
                                    ):
+    if sample_index < last_valid_index:
+        continue
     data_sample = generator[sample_index]
     X0 = data_sample["X"]
     y_true = data_sample["y"]
@@ -184,6 +193,8 @@ for sample_index, row in tqdm.tqdm(dataset.metadata.iterrows(),
 
     checkpoint_ii += 1
     if checkpoint_ii == checkpoint_loop:
+        checkpoint_ii = 0
+        
         metadata.to_csv(
             output_path / cfg.auto_picker.file_name
         )
@@ -191,4 +202,12 @@ for sample_index, row in tqdm.tqdm(dataset.metadata.iterrows(),
         metadata.to_pickle(
             output_path / cfg.auto_picker.file_name.replace('.csv', '.pkl')
         )
-        checkpoint_ii = 0
+        
+
+metadata.to_csv(
+    output_path / cfg.auto_picker.file_name
+)
+
+metadata.to_pickle(
+    output_path / cfg.auto_picker.file_name.replace('.csv', '.pkl')
+)
