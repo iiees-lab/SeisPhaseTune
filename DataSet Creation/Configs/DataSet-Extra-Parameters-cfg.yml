@@ -50,15 +50,38 @@ auto_picker:
     dl:
       # - cls: seisbench.models.BasicPhaseAE
         # weights_type: iquique
+      
+      - cls: seisbench.models.BasicPhaseAE
+        weights_type: scedc
+      - cls: seisbench.models.BasicPhaseAE
+        weights_type: instance
+      - cls: seisbench.models.BasicPhaseAE
+        weights_type: stead
 
       - cls: seisbench.models.EQTransformer
+        weights_type: scedc
+      - cls: seisbench.models.EQTransformer
+        weights_type: instance
+      - cls: seisbench.models.EQTransformer # original = stead
         weights_type: original
+        
+      - cls: seisbench.models.PhaseNet
+        weights_type: scedc
+      - cls: seisbench.models.PhaseNet
+        weights_type: stead
+      - cls: seisbench.models.PhaseNet
+        weights_type: instance
+      - cls: seisbench.models.PhaseNet # original = Northern California Earthquake Data Center Catalog (NCEDC 2014)
+        weights_type: original
+        
+      # - cls: seisbench.models.Skynet
+        # weights_type: original
         
       # - cls: seisbench.models.GPD
         # weights_type: original
 
-      - cls: seisbench.models.PhaseNet
-        weights_type: original
+      # - cls: seisbench.models.PhaseNet
+        # weights_type: original
         # cls_inputs:
             # batch_size: 256
             # overlap: 1500
