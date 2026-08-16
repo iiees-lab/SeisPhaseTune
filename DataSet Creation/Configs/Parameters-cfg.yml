@@ -13,7 +13,7 @@ log:
 
 dataset:
     data_format:
-        dimension_order: CW
+        dimension_order: NCW
         component_order: ZNE
         sampling_rate: 100
         measurement: velocity

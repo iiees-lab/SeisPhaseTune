@@ -32,7 +32,7 @@ lst_path_datasets = [
 ]
 
 data_format_tmp = data_format.copy()
-data_format_tmp.pop('dimension_order')
+#data_format_tmp.pop('dimension_order')
 lst_datasets = []
 for path_dataset in lst_path_datasets:
     dataset = WaveformDataset(
