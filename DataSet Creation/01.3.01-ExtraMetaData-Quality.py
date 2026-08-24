@@ -141,6 +141,13 @@ for ii in tqdm(range(len(metadata))):
                 ] = val[0]
         quality_params.update(dict_snr)
         #######################################################################
+        dict_phase = {}
+        for phasehint in ["P", "S"]:
+            # is Emergent or Impulsive 
+            dict_phase[
+                f'trace_{channel}_Emergent_{phasehint}-hint_bool'
+            ] = None # process data_1c
+        #######################################################################
         dict_stats = {
             f'trace_{channel}_mad_count':
                 stats.median_abs_deviation(x=data_1c),
