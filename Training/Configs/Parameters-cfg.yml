@@ -12,6 +12,7 @@ log:
     filename_timestamp: null
 
 dataset:
+    path: D:\DataSets-Local\1405-04-03\Merged_Dataset_2026-06-24T15-15-22
     data_format:
         # https://seisbench.readthedocs.io/en/stable/pages/data/data_format.html#the-data-format-group
         dimension_order: NCW
