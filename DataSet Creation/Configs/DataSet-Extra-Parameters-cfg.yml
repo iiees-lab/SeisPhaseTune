@@ -108,3 +108,27 @@ merge_dataset:
       - D:\DataSets-Local\1405-04-03\Kaki-Dataset_2026-06-24T13-26-29
       - D:\DataSets-Local\1405-04-03\Qeshm-Dataset_2026-06-24T13-37-10
       - D:\DataSets-Local\1405-04-03\Ilam-Dataset_2026-06-24T13-11-20
+
+quality_statistic:
+    file_path: "{dataset.path}/{dataset.extra_metadata_dir}"
+    file_name: Quality_Parameters
+    augmentation:
+      - cls: seisbench.generate.Normalize
+        demean_axis: -1
+        detrend_axis: -1
+        # In order to achieve accurate statistical calculations,
+        # the data is not normalized.
+        amp_norm_axis: null
+        amp_norm_type: peak
+        eps: 1.0e-10
+        key: X
+      - cls: seisbench.generate.ChangeDtype
+        dtype: "{np.float32}"
+      - cls: seisbench.generate.Filter
+        N: 2
+        Wn: [2, 8] # (freqmin, freqmax)
+        btype: bandpass
+        analog: False
+        forward_backward: True
+        axis: -1
+        key: ['X', 'X1']
