@@ -47,7 +47,10 @@ dataloader:
         num_workers: 0
 
 augmentation:
-  - cls: SeisRoutine.seisbench.waveform.Tapering
+  - cls: SeisRoutine.seisbench.dataset.BadChannelReplacer
+    column: channel_status
+
+  - cls: SeisRoutine.seisbench.dataset.Tapering
     
   - cls: seisbench.generate.Normalize
     demean_axis: -1
