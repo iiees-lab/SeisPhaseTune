@@ -17,10 +17,57 @@ import logging
 import tqdm
 from pathlib import Path
 import pandas as pd
+import matplotlib.pyplot as plt
 ##########################################################################
 import warnings
 warnings.simplefilter('ignore', DeprecationWarning)
 ##########################################################################
+
+from obspy.core.trace import Trace
+from obspy.core.stream import Stream
+
+def mk_stream(data, header=None, component_order="ENZ"):
+    if not header:
+        header = {
+            "network": "IK",
+            "station": "IK",
+            "location": "IK",
+            "channel": None,
+            "sampling_rate": 100,
+        }
+    
+    lst_tr = []
+    for d, cha in zip(data, component_order):
+        header.update({"channel": f"HH{cha}"})
+    
+        tr = Trace(
+            data=d,
+            header=header,
+        )
+        lst_tr.append(tr)
+    st = Stream(lst_tr)
+    
+    return st
+
+
+def auto_labeling(stream=None, array=None, dl_pickers=None):
+    outputs = {'P': {}, 'S': {}}
+    for name, picker in dl_pickers.items():
+        if stream:
+            output = picker.classify(stream)
+            picks = output.picks
+            # creator = output.creator
+        elif array:
+            pass
+            # with torch.no_grad():
+            #     data = torch.tensor(array, device=picker.device).unsqueeze(0)
+            #     pred = model(data)
+            #     pred = pred[0].cpu().numpy()
+        for pick in picks:
+            outputs[pick.phase][name] = pick.peak_time
+    return outputs
+    
+
 
 def standardize_output(pred, dl_picker):
     
@@ -147,7 +194,9 @@ output_path = Path(cfg.auto_picker.file_path)
 output_path.mkdir(parents=True, exist_ok=True)
 
 try:
-    metadata_last_run = pd.read_pickle(output_path / cfg.auto_picker.file_name.replace('.csv', '.pkl'))
+    metadata_last_run = pd.read_pickle(
+        output_path / cfg.auto_picker.file_name.replace('.csv', '.pkl')
+    )
     metadata = metadata_last_run.copy()
     last_valid_index = metadata_last_run['PhaseNet_original_0.3_P'].last_valid_index()
 except FileNotFoundError:
