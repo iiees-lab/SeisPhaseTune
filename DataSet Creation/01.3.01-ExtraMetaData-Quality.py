@@ -10,7 +10,7 @@ import SeisRoutine.waveform as srw
 import SeisRoutine.config as srconf
 import SeisRoutine.seisbench as srsb
 import SeisRoutine.waveform.health_check.spike as spike_checker
-
+import matplotlib.pyplot as plt
 
 import seisbench.generate as sbg
 import seisbench.data as sbd
@@ -20,13 +20,16 @@ import pandas as pd
 import os
 from tqdm import tqdm
 from scipy import stats
+import scipy.stats
+import pprint as pp
 
 class SNRCalculator:
     def __init__(self, sps=100, methods=None):
         self.sps = sps
         self.methods = methods or [
+            'peak_to_peak',
             'power_in_time',
-            'power_in_freq',
+            # 'power_in_freq',
             'mad',
             'percentile',
             'cwt',
@@ -34,7 +37,7 @@ class SNRCalculator:
 
     def evaluate(self, waveform, phase_index=None):
         results = {}
-        if not phase_index:
+        if pd.isna(phase_index):
             return results
         
         snr_obj = srw.waveform.SNR(
@@ -43,12 +46,29 @@ class SNRCalculator:
             noise_window=[phase_index-250, phase_index-50],
             signal_window=[phase_index, phase_index+200],
         )
+        
+
+            
         for method_name in self.methods:
             method = getattr(snr_obj, method_name)
             snr = method()
             results[method_name] = snr
+            
+        # if phasehint == "P":
+        #     fig, (ax1, ax2) = plt.subplots(
+        #         nrows=1, ncols=2, figsize=(10, 5), sharey=True,
+        #         gridspec_kw={'hspace': 0, 'wspace': 0},
+        #     )
+        #     ax1.plot(snr_obj.noise.T)
+        #     ax1.set_title(f"Noise min {snr_obj.noise.min():.4f} max {snr_obj.noise.max():.4f}")
+        #     ax2.plot(snr_obj.signal.T)
+        #     ax2.set_title(f"Signal min {snr_obj.signal.min():.4f} max {snr_obj.signal.max():.4f}")
+        #     snr = results["power_in_time"]
+        #     plt.suptitle(f"{phasehint} {snr[0]:.4f}")
+        #     plt.show()
+        
         return results
-snr_evaluator = SNRCalculator()
+# snr_evaluator = SNRCalculator()
 
 timestamp = srconf.timestamp()
 context={
@@ -70,19 +90,28 @@ dataset = sbd.WaveformDataset(
 augmentations = srsb.dataset.build_augmentations(
     cfg.quality_statistic.augmentation
 )
-freqmin, freqmax = cfg.quality_statistic.augmentation[2].Wn
 generator = sbg.GenericGenerator(dataset)
 generator.add_augmentations(augmentations)
+
+for augmentation in cfg.quality_statistic.augmentation:
+    if augmentation.cls == "seisbench.generate.Filter":
+        freqmin, freqmax = augmentation.Wn
+    else:
+        pass
+        # freqmin, freqmax = None, None
+
+
 
 
 phase_dict = srsb.dataset.build_phase_mapper(dataset.metadata.columns)
 
 
-path = r"D:/DataSets-Local/1405-04-03/Merged_Dataset_2026-06-24T15-15-22/Extra_MetaData/PS_selected.pkl"
-df_manual_picks = pd.read_pickle(path)
+df_manual_picks = pd.read_pickle(
+    Path(cfg.dataset.path) / "Extra_MetaData/PS_selected.pkl"
+)
 cols_to_convert = ['Manual_Pick_P', 'Manual_Pick_S']
 for col in cols_to_convert:
-    df_manual_picks[col] = df_manual_picks[col].astype("Int64")
+    df_manual_picks[col] = df_manual_picks[col].astype("Int32")
 
 
 metadata = pd.merge(
@@ -93,47 +122,70 @@ metadata = pd.merge(
 )
 
 lst_all_results = []
-
+from copy import deepcopy
 for ii in tqdm(range(len(metadata))):
     sample = generator[ii]
     data_3c = sample['X']
     data_3c_filt = sample['X1']
     metadata_sample = metadata.iloc[ii]
     
-    quality_params = {}
+    quality_params_init = {}
     for key in cfg.dataset.desired_columns:
-        quality_params.update([(key, metadata_sample[key])])
+        quality_params_init.update([(key, metadata_sample[key])])
     
+    # fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+    # ax1.plot(data_3c.T+[1, 0, -1]); ax1.set_title(f"{ii} RAW")
+    # ax2.plot(data_3c_filt.T+[1, 0, -1]); ax2.set_title(f"{ii} FILT")
+    # plt.show()
+    quality_params = deepcopy(quality_params_init)
     for channel, data_1c, data_1c_filt in zip(dataset.component_order,
                                               data_3c,
                                               data_3c_filt):
-        spike_hampel, _ = spike_checker.hampel(
-            data_1c, window_size=301, n_sigmas=30
-        )
-        
+        # quality_params = deepcopy(quality_params_init)
+        # print(quality_params)
+        #######################################################################
+        # spike_hampel, _ = spike_checker.hampel(
+        #     data_1c, window_size=301, n_sigmas=30
+        # )
         dict_spike = {
-            f'trace_{channel}_zscore-spike_index':
-                spike_checker.zscore(data_1c, threshold=15),
-            f'trace_{channel}_differential-spike_index':
-                spike_checker.differential(data_1c, dt=0.01, threshold=60),
-            f'trace_{channel}_prominence-spike_index':
-                spike_checker.prominence(data_1c, prominence=20),
-            f'trace_{channel}_wavelet-spike_index':
-                spike_checker.wavelet(
-                    data_1c,
-                    wavelet='db4', level=4, coeffs_index=-1, threshold=10
+            f'trace_{channel}_spike_index':
+                srw.waveform.SpikeDetector2.detect(
+                    signal=data_1c,
+                    kwargs_sliding={
+                        "window": 3*100,
+                        "step": 1*100,
+                        "method": "vectorized",
+                    },
+                    kwargs_spike_suspected={
+                        "threshold": 2
+                    },
+                    skew_threshold=2,
                 ),
-            f'trace_{channel}_hampel-spike_index':
-                True if spike_hampel.size !=0 else False,
+            # f'trace_{channel}_zscore-spike_index':
+            #     spike_checker.zscore(data_1c, threshold=10),
+            # f'trace_{channel}_differential-spike_index':
+            #     spike_checker.differential(data_1c, dt=0.01, threshold=1e8),
+            # # f'trace_{channel}_prominence-spike_index':
+            # #     spike_checker.prominence(data_1c, prominence=1e10),
+            # f'trace_{channel}_wavelet-spike_index':
+            #     spike_checker.wavelet(
+            #         data_1c,
+            #         wavelet='db4', level=4, coeffs_index=-1, threshold=20
+            #     ),
+            # f'trace_{channel}_hampel-spike_index':
+            #     True if spike_hampel.size !=0 else False,
         }
         quality_params.update(dict_spike)
         #######################################################################
         dict_snr = {}
         for phasehint in ["P", "S"]:
+            snr_evaluator = SNRCalculator()
+
             snrs = snr_evaluator.evaluate(
                 waveform=data_1c,
                 phase_index=metadata_sample[f'Manual_Pick_{phasehint}']
-                )
+            )
+
             for key, val in snrs.items():
                 method = key
                 dict_snr[
@@ -150,20 +202,20 @@ for ii in tqdm(range(len(metadata))):
         #######################################################################
         dict_stats = {
             f'trace_{channel}_mad_count':
-                stats.median_abs_deviation(x=data_1c),
+                scipy.stats.median_abs_deviation(x=data_1c),
             f'trace_{channel}_skewness_count':
-                stats.skew(a=data_1c, bias=False),
+                scipy.stats.skew(a=data_1c, bias=False),
             f'trace_{channel}_kurtosis_count':
-                stats.kurtosis(a=data_1c, fisher=True, bias=False),
+                scipy.stats.kurtosis(a=data_1c, fisher=True, bias=False),
             f'trace_{channel}_mmr_count':
                 srw.health_check.spike.min_max_ratio(data_1c),
             ###################################################################
-            f'trace_{channel}_skewness_freq_{freqmin}_{freqmax}_count':
-                stats.skew(a=data_1c_filt, bias=False),
-            f'trace_{channel}_kurtosis_freq_{freqmin}_{freqmax}_count':
-                stats.kurtosis(a=data_1c_filt, fisher=True, bias=False),
-            f'trace_{channel}_mmr_freq_{freqmin}_{freqmax}_count':
-                srw.health_check.spike.min_max_ratio(data_1c_filt),
+            # f'trace_{channel}_skewness_freq_{freqmin}_{freqmax}_count':
+            #     scipy.stats.skew(a=data_1c_filt, bias=False),
+            # f'trace_{channel}_kurtosis_freq_{freqmin}_{freqmax}_count':
+            #     scipy.stats.kurtosis(a=data_1c_filt, fisher=True, bias=False),
+            # f'trace_{channel}_mmr_freq_{freqmin}_{freqmax}_count':
+            #     srw.health_check.spike.min_max_ratio(data_1c_filt),
         }
         quality_params.update(dict_stats)
         #######################################################################
@@ -179,12 +231,29 @@ for ii in tqdm(range(len(metadata))):
         }
         quality_params.update(dict_constant)
         #######################################################################
+        # print()
+        result = {
+            k:v for k,v in quality_params.items()
+            if (
+                k.startswith(f'trace_{channel}')
+                and
+                "SNR" in k
+                and
+                "trace_Z" in k
+                # "_P-hint" in k
+            )
+        }
+        # if result:
+        #     print()
+        #     pp.pprint(result)
+            # input("Press Any Keys!")
     # for key, val in quality_params.items():
     #     metadata.at[ii, key] = val
     
     lst_all_results.append(quality_params)
-    if ii == 10:
-        break
+    # break
+    # if ii == 10:
+    #     break
 df_all_results = pd.DataFrame(lst_all_results)
 
 outpath = Path(cfg.quality_statistic.file_path)
