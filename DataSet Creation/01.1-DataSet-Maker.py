@@ -61,7 +61,7 @@ for cfg_project in cfg_projects.projects:
     )
 
     out_path = srconf.build_paths(
-        base_path=cfg.dataset.path.dataset,
+        base_path=cfg.dataset.path.output_dataset,
         metadata="metadata.csv",
         waveforms="waveforms.hdf5",
         stream=cfg.dataset.save_streams.format,

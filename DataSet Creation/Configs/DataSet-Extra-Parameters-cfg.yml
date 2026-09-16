@@ -14,6 +14,7 @@ log:
 seed: 42
 
 dataset:
+    # path: 'D:\DataSets-Local\1405-04-03\Test_Data'
     path: 'D:\DataSets-Local\1405-04-03\Merged_Dataset_2026-06-24T15-15-22'
     extra_metadata_dir: Extra_MetaData
     data_format:
@@ -102,7 +103,7 @@ path:
     model: 'D:\Models\{model.cls}_{timestamp}'
     
 merge_dataset:
-    output_dataset: D:\DataSets-Local\1405-04-03\Merged_Dataset_2026-06-24T15-15-22
+    output_dataset: D:\DataSets-Local\1405-04-03\Merged_Dataset_2026-09-05T10-53-17
     input_datasets:
       - D:\DataSets-Local\1405-04-03\Ahar-Dataset_2026-06-24T13-01-38
       - D:\DataSets-Local\1405-04-03\Kaki-Dataset_2026-06-24T13-26-29
@@ -113,15 +114,15 @@ quality_statistic:
     file_path: "{dataset.path}/{dataset.extra_metadata_dir}"
     file_name: Quality_Parameters
     augmentation:
-      - cls: seisbench.generate.Normalize
-        demean_axis: -1
-        detrend_axis: -1
+      # - cls: seisbench.generate.Normalize
+        # demean_axis: -1
+        # detrend_axis: -1
         # In order to achieve accurate statistical calculations,
         # the data is not normalized.
-        amp_norm_axis: null
-        amp_norm_type: peak
-        eps: 1.0e-10
-        key: X
+        # amp_norm_axis: null
+        # amp_norm_type: peak
+        # eps: 1.0e-10
+        # key: X
       - cls: seisbench.generate.ChangeDtype
         dtype: "{np.float32}"
       - cls: seisbench.generate.Filter
@@ -132,3 +133,5 @@ quality_statistic:
         forward_backward: True
         axis: -1
         key: ['X', 'X1']
+      # - cls: seisbench.generate.Copy
+        # key: ['X', 'X1']

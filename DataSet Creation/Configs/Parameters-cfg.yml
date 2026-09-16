@@ -6,7 +6,7 @@ log:
     mode: both
     colored_console: True
     # Note: The name and path of the log file are set in the settings section for each code.
-    filepath: "{dataset.path.dataset}" # Set in the subset config.
+    filepath: "{dataset.path.output_dataset}" # Set in the subset config.
     filename_prefix: mk_dataset
     filename: "{project.name}_{timestamp}" # if set to "now", the current date set as the logfile name.
     filename_timestamp: null
@@ -33,4 +33,4 @@ dataset:
         inventory: D:\Inventory\DataLess\*\*\*.dlsv
         stream_root: D:\Local_Network_Data-SeisComP\{project.name}
         stream_pattern: '{time.year}/{project.network}/*/{project.channel}*.D/*.*.*.*.D.{time.year}.{time.julday:03d}'
-        dataset: 'D:\DataSets-Local\1405-04-03\{project.name}-Dataset_{timestamp}'
+        output_dataset: 'D:\DataSets-Local\1405-04-03\{project.name}-Dataset_{timestamp}'
