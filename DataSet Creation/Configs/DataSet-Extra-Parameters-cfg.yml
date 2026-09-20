@@ -133,5 +133,11 @@ quality_statistic:
         forward_backward: True
         axis: -1
         key: ['X', 'X1']
+      - cls: seisbench.generate.ProbabilisticLabeller
+        label_columns: "{phase_dict}"
+        model_labels: NPS
+        sigma: 30
+        dim: 0
+        # key: ['X', 'y']
       # - cls: seisbench.generate.Copy
         # key: ['X', 'X1']
