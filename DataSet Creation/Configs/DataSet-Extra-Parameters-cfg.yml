@@ -138,6 +138,26 @@ quality_statistic:
         model_labels: NPS
         sigma: 30
         dim: 0
-        # key: ['X', 'y']
       # - cls: seisbench.generate.Copy
         # key: ['X', 'X1']
+    SpikeDetector2:
+        kwargs_sliding:
+            window: 300
+            step: 100
+            method: vectorized
+        kwargs_spike_suspected_skewness:
+            threshold: 3
+        kwargs_find_peaks:
+            height: null
+            threshold: null
+            distance: 300
+            prominence: "lambda mad, **_: 30 * mad"
+            width: null
+            wlen: null
+            rel_height: 0.5
+            plateau_size: null
+        min_detection_count: 1
+    RepeatedValueDetector:
+        min_run_length: 3
+        tolerance: 0.001
+        relation_to_max: 0.9
