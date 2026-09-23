@@ -170,6 +170,7 @@ for ii in tqdm(range(len(metadata))):
             # spike_hampel, _ = spike_checker.hampel(
             #     data_1c, window_size=301, n_sigmas=30
             # )
+            absolute_signal = cfg.quality_statistic.SpikeDetector2.absolute_signal
             kwargs_sliding = cfg.quality_statistic.SpikeDetector2.kwargs_sliding.to_dict()
             kwargs_find_peaks = cfg.quality_statistic.SpikeDetector2.kwargs_find_peaks.to_dict()
             kwargs_spike_suspected_skewness = cfg.quality_statistic.SpikeDetector2.kwargs_spike_suspected_skewness.to_dict()
@@ -186,6 +187,7 @@ for ii in tqdm(range(len(metadata))):
                 f'trace_{channel}_spike_index':
                     srw.waveform.SpikeDetector2.detect(
                         signal=data_1c,
+                        absolute_signal=absolute_signal,
                         kwargs_sliding=kwargs_sliding,
                         kwargs_spike_suspected_skewness=kwargs_spike_suspected_skewness,
                         kwargs_find_peaks=kwargs_find_peaks,

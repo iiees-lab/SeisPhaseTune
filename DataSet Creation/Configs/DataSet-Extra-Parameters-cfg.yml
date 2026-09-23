@@ -141,6 +141,7 @@ quality_statistic:
       # - cls: seisbench.generate.Copy
         # key: ['X', 'X1']
     SpikeDetector2:
+        absolute_signal: false
         kwargs_sliding:
             window: 300
             step: 100
