@@ -150,13 +150,13 @@ quality_statistic:
         kwargs_find_peaks:
             height: null
             threshold: null
-            distance: 300
-            prominence: "lambda mad, **_: 30 * mad"
-            width: null
+            distance: null
+            prominence: "lambda mad, **_: 10 * mad"
+            width: [null, 2]
             wlen: null
-            rel_height: 0.5
+            rel_height: 0.95
             plateau_size: null
-        min_detection_count: 1
+        min_detection_count: 2
     RepeatedValueDetector:
         min_run_length: 3
         tolerance: 0.001

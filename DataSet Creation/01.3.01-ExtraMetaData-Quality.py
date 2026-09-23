@@ -170,37 +170,26 @@ for ii in tqdm(range(len(metadata))):
             # spike_hampel, _ = spike_checker.hampel(
             #     data_1c, window_size=301, n_sigmas=30
             # )
+            kwargs_sliding = cfg.quality_statistic.SpikeDetector2.kwargs_sliding.to_dict()
+            kwargs_find_peaks = cfg.quality_statistic.SpikeDetector2.kwargs_find_peaks.to_dict()
+            kwargs_spike_suspected_skewness = cfg.quality_statistic.SpikeDetector2.kwargs_spike_suspected_skewness.to_dict()
+            min_detection_count = cfg.quality_statistic.SpikeDetector2.min_detection_count
+            
+            # safe eval
+            kwargs_find_peaks['prominence'] = eval(
+                kwargs_find_peaks['prominence'],
+                {"__builtins__": {}},
+                {}
+            )
+            
             dict_spike = {
                 f'trace_{channel}_spike_index':
                     srw.waveform.SpikeDetector2.detect(
                         signal=data_1c,
-                        
-                        # kwargs_sliding=cfg.quality_statistic.SpikeDetector2.kwargs_sliding,
-                        kwargs_sliding={
-                            "window": 3*100,
-                            "step": 1*100,
-                            "method": "vectorized",
-                        },
-                        
-                        # kwargs_spike_suspected_skewness=cfg.quality_statistic.SpikeDetector2.kwargs_spike_suspected_skewness,
-                        kwargs_spike_suspected_skewness={
-                            "threshold": 3
-                        },
-                        
-                        # kwargs_find_peaks=cfg.quality_statistic.SpikeDetector2.kwargs_find_peaks,
-                        kwargs_find_peaks={
-                            'height': None,
-                            'threshold': 2**22,
-                            'distance': 3*100,
-                            'prominence': lambda mad, **_: 10 * mad,
-                            'width': None,
-                            'wlen': None,
-                            'rel_height': 0.5,
-                            'plateau_size': None,
-                        },
-                        
-                        # min_detection_count=cfg.quality_statistic.SpikeDetector2.min_detection_count,
-                        min_detection_count=2,
+                        kwargs_sliding=kwargs_sliding,
+                        kwargs_spike_suspected_skewness=kwargs_spike_suspected_skewness,
+                        kwargs_find_peaks=kwargs_find_peaks,
+                        min_detection_count=min_detection_count,
                     ),
                 # f'trace_{channel}_zscore-spike_index':
                 #     spike_checker.zscore(data_1c, threshold=10),
@@ -308,8 +297,8 @@ for ii in tqdm(range(len(metadata))):
             # input("Press Any Keys!")
     lst_all_results.append(quality_params)
     # break
-    if ii == 2000:
-        break
+    # if ii == 300:
+    #     break
 df_all_results = pd.DataFrame(lst_all_results)
 
 outpath = Path(cfg.quality_statistic.file_path)
