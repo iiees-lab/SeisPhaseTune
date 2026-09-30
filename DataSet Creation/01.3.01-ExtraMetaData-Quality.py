@@ -5,9 +5,10 @@ import numpy as np
 import pandas as pd
 # import os
 from tqdm import tqdm
-# import scipy.stats
+import scipy.stats
 # import pprint as pp
 from copy import deepcopy
+import logging
 ###############################################################################
 import sys
 import yaml
@@ -80,9 +81,12 @@ cfg = srconf.Config.load(
     cfg_path,
     resolve=True,
 )
+class project:
+    name = "name"
 context={
     "timestamp": srconf.timestamp(),
     "np": np,
+    "project": project()
 }
 cfg.resolve(context=context)
 
@@ -99,13 +103,30 @@ cfg.resolve(
         "phase_dict": phase_dict
     }
 )
+
+######### Logging Configuration
+srconf.configure_logging(**cfg.to_dict()['log'])
+
+running_file_info = srconf.RuntimeLocation.get_caller_info()
+msg = f"Running Code | {running_file_info['full_path']}"
+logging.info(msg)
+
+# List all installed packages and their versions
+msg = srconf.EnvironmentInfo().report(include_freeze=True)
+logging.info(msg)
+
+msg = cfg.__str__()
+logging.info(f'Configuration File:\n{msg}')
+######### End Logging Configuration
+
+
 augmentations = srsb.dataset.build_augmentations(
-    cfg.quality_statistic.augmentation
+    cfg.quality.augmentation
 )
 generator = sbg.GenericGenerator(dataset)
 generator.add_augmentations(augmentations)
 
-for augmentation in cfg.quality_statistic.augmentation:
+for augmentation in cfg.quality.augmentation:
     if augmentation.cls == "seisbench.generate.Filter":
         freqmin, freqmax = augmentation.Wn
     else:
@@ -129,10 +150,8 @@ metadata = pd.merge(
 )
 
 constant_detector = srw.health_check.constant.RepeatedValueDetector(
-    **cfg.quality_statistic.RepeatedValueDetector.to_dict()
-    # min_run_length=3, tolerance=0.001, relation_to_max=0.9
+    **cfg.quality.constant.SeisRoutine.RepeatedValueDetector.to_dict()
 )
-# snr_evaluator = SNRCalculator()
 
 
 lst_all_results = []
@@ -157,24 +176,22 @@ for ii in tqdm(range(len(metadata))):
             # data_3c_filt
     ):
         identification_str = (
-            f"{metadata_sample['index']} "
-            f"{metadata_sample.trace_name} "
-            f"{channel} "
-            f"{data_1c.size} {data_1c.dtype} {type(data_1c)}"
+            f"index: {metadata_sample['index']}"
+            " | "
+            f"trace_name: {metadata_sample.trace_name}"
+            " | "
+            f"channel: {channel} "
+            " | "
+            f"size: {data_1c.size} dtype: {data_1c.dtype} type: {type(data_1c)}"
         )
-        # quality_params = deepcopy(quality_params_init)
-        # print(quality_params)
         #######################################################################
         dict_spike = {}
         try:
-            # spike_hampel, _ = spike_checker.hampel(
-            #     data_1c, window_size=301, n_sigmas=30
-            # )
-            absolute_signal = cfg.quality_statistic.SpikeDetector2.absolute_signal
-            kwargs_sliding = cfg.quality_statistic.SpikeDetector2.kwargs_sliding.to_dict()
-            kwargs_find_peaks = cfg.quality_statistic.SpikeDetector2.kwargs_find_peaks.to_dict()
-            kwargs_spike_suspected_skewness = cfg.quality_statistic.SpikeDetector2.kwargs_spike_suspected_skewness.to_dict()
-            min_detection_count = cfg.quality_statistic.SpikeDetector2.min_detection_count
+            absolute_signal = cfg.quality.SpikeDetector2.absolute_signal
+            kwargs_sliding = cfg.quality.SpikeDetector2.kwargs_sliding.to_dict()
+            kwargs_find_peaks = cfg.quality.SpikeDetector2.kwargs_find_peaks.to_dict()
+            kwargs_spike_suspected_skewness = cfg.quality.SpikeDetector2.kwargs_spike_suspected_skewness.to_dict()
+            min_detection_count = cfg.quality.SpikeDetector2.min_detection_count
             
             # safe eval
             kwargs_find_peaks['prominence'] = eval(
@@ -193,93 +210,110 @@ for ii in tqdm(range(len(metadata))):
                         kwargs_find_peaks=kwargs_find_peaks,
                         min_detection_count=min_detection_count,
                     ),
-                # f'trace_{channel}_zscore-spike_index':
-                #     spike_checker.zscore(data_1c, threshold=10),
-                
-                # f'trace_{channel}_differential-spike_index':
-                #     spike_checker.differential(data_1c, dt=0.01, threshold=1e8),
-                
-                # # f'trace_{channel}_prominence-spike_index':
-                # #     spike_checker.prominence(data_1c, prominence=1e10),
-                
-                # f'trace_{channel}_wavelet-spike_index':
-                #     spike_checker.wavelet(
-                #         data_1c,
-                #         wavelet='db4', level=4, coeffs_index=-1, threshold=20
-                #     ),
-                
-                # f'trace_{channel}_hampel-spike_index':
-                #     True if spike_hampel.size !=0 else False,
             }
         except Exception as error:
-            print("spike", identification_str, " : ", error)
+            msg = " | ".join(
+                [
+                    "Spike Section",
+                    identification_str,
+                    f"error : {error}",
+                ]
+            )
+            logging.error(msg)
         quality_params.update(dict_spike)
         #######################################################################
-        # dict_snr = {}
-        # try:
-        #     for phasehint in ["P", "S"]:
-        #         snr_evaluator = SNRCalculator()
+        dict_snr = {}
+        try:
+            for phasehint in ["P", "S"]:
+                snr_evaluator = SNRCalculator()
     
-        #         snrs = snr_evaluator.evaluate(
-        #             waveform=data_1c,
-        #             phase_index=metadata_sample[f'Manual_Pick_{phasehint}']
-        #         )
+                snrs = snr_evaluator.evaluate(
+                    waveform=data_1c,
+                    phase_index=metadata_sample[f'Manual_Pick_{phasehint}']
+                )
     
-        #         for key, val in snrs.items():
-        #             method = key
-        #             dict_snr[
-        #                 f'trace_{channel}_SNR_{phasehint}-hint_{method}_count'
-        #             ] = val[0]
-        # except Exception as error:
-        #     print("snr", identification_str, " : ", error)
-        # quality_params.update(dict_snr)
+                for key, val in snrs.items():
+                    method = key
+                    dict_snr[
+                        f'trace_{channel}_SNR_{phasehint}-hint_{method}_count'
+                    ] = val[0]
+        except Exception as error:
+            msg = " | ".join(
+                [
+                    "SNR Section",
+                    identification_str,
+                    f"error : {error}",
+                ]
+            )
+            logging.error(msg)
+        quality_params.update(dict_snr)
         #######################################################################
-        # dict_phase_emergent_impulsive = {}
-        # try:
-            # for phasehint in ["P", "S"]:
-            #     # is Emergent or Impulsive 
-            #     dict_phase_emergent_impulsive[
-            #         f'trace_{channel}_Emergent_{phasehint}-hint_bool'
-            #     ] = None # process data_1c
-        # except Exception as error:
-        #     print("Emer|Impu", identification_str, " : ", error)
-        # quality_params.update(dict_phase_emergent_impulsive)
+        dict_phase_emergent_impulsive = {}
+        try:
+            for phasehint in ["P", "S"]:
+                # is Emergent or Impulsive 
+                dict_phase_emergent_impulsive[
+                    f'trace_{channel}_Emergent_{phasehint}-hint_bool'
+                ] = None # process data_1c
+        except Exception as error:
+            msg = " | ".join(
+                [
+                    "Emer&Impu Section",
+                    identification_str,
+                    f"error : {error}",
+                ]
+            )
+            logging.error(msg)
+        quality_params.update(dict_phase_emergent_impulsive)
         #######################################################################
-        # dict_stats = {}
-        # try:
-            # dict_stats = {
-            #     f'trace_{channel}_mad_count':
-            #         scipy.stats.median_abs_deviation(x=data_1c),
-            #     f'trace_{channel}_skewness_count':
-            #         scipy.stats.skew(a=data_1c, bias=False),
-            #     f'trace_{channel}_kurtosis_count':
-            #         scipy.stats.kurtosis(a=data_1c, fisher=True, bias=False),
-            #     f'trace_{channel}_mmr_count':
-            #         srw.health_check.spike.min_max_ratio(data_1c),
-            #     ###################################################################
-            #     # f'trace_{channel}_skewness_freq_{freqmin}_{freqmax}_count':
-            #     #     scipy.stats.skew(a=data_1c_filt, bias=False),
-            #     # f'trace_{channel}_kurtosis_freq_{freqmin}_{freqmax}_count':
-            #     #     scipy.stats.kurtosis(a=data_1c_filt, fisher=True, bias=False),
-            #     # f'trace_{channel}_mmr_freq_{freqmin}_{freqmax}_count':
-            #     #     srw.health_check.spike.min_max_ratio(data_1c_filt),
-            # }
-        # except Exception as error:
-        #     print("statics", identification_str, " : ", error)
-        # quality_params.update(dict_stats)
+        dict_statistics = {}
+        try:
+            dict_statistics = {
+                f'trace_{channel}_mad_count':
+                    scipy.stats.median_abs_deviation(x=data_1c),
+                f'trace_{channel}_skewness_count':
+                    scipy.stats.skew(
+                        a=data_1c,
+                        **cfg.quality.statistics.scipy.skew.to_dict()
+                    ),
+                f'trace_{channel}_kurtosis_count':
+                    scipy.stats.kurtosis(
+                        a=data_1c,
+                        **cfg.quality.statistics.scipy.kurtosis.to_dict()
+                    ),
+                f'trace_{channel}_mmr_count':
+                    srw.health_check.spike.min_max_ratio(data_1c),
+            }
+        except Exception as error:
+            msg = " | ".join(
+                [
+                    "statics Section",
+                    identification_str,
+                    f"error : {error}",
+                ]
+            )
+            logging.error(msg)
+        quality_params.update(dict_statistics)
         #######################################################################
-        # dict_constant = {}
-        # try:
-            # constant = constant_detector.detect(signal=data_1c)
-            # dict_constant = {
-            #     f'trace_{channel}_repeated_signal_count':
-            #         constant.repeated_mask.sum(),
-            #     f'trace_{channel}_clipped_signal_count':
-            #         constant.clipped_mask.sum(),
-            # }
-        # except Exception as error:
-        #     print("constant", identification_str, " : ", error)
-        # quality_params.update(dict_constant)
+        dict_constant = {}
+        try:
+            constant = constant_detector.detect(signal=data_1c)
+            dict_constant = {
+                f'trace_{channel}_repeated_signal_count':
+                    constant.repeated_mask.sum(),
+                f'trace_{channel}_clipped_signal_count':
+                    constant.clipped_mask.sum(),
+            }
+        except Exception as error:
+            msg = " | ".join(
+                [
+                    "Constant Section",
+                    identification_str,
+                    f"error : {error}",
+                ]
+            )
+            logging.error(msg)
+        quality_params.update(dict_constant)
         #######################################################################
         # print()
         # result = {
@@ -303,7 +337,7 @@ for ii in tqdm(range(len(metadata))):
     #     break
 df_all_results = pd.DataFrame(lst_all_results)
 
-outpath = Path(cfg.quality_statistic.file_path)
-name = cfg.quality_statistic.file_name
+outpath = Path(cfg.quality.file_path)
+name = cfg.quality.file_name
 df_all_results.to_pickle(f'{outpath}/{name}.pkl')
 df_all_results.to_csv(f'{outpath}/{name}.csv')

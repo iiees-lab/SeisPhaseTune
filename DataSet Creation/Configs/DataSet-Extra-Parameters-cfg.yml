@@ -32,7 +32,7 @@ auto_picker:
     file_path: "{dataset.path}/{dataset.extra_metadata_dir}"
     file_name: auto_picker.csv
     augmentation:
-      - cls: SeisRoutine.seisbench.waveform.Tapering
+      - cls: SeisRoutine.seisbench.dataset.Tapering
 
       - cls: seisbench.generate.FixedWindow
         p0: -1500          # -15 * sps
@@ -110,7 +110,7 @@ merge_dataset:
       - D:\DataSets-Local\1405-04-03\Qeshm-Dataset_2026-06-24T13-37-10
       - D:\DataSets-Local\1405-04-03\Ilam-Dataset_2026-06-24T13-11-20
 
-quality_statistic:
+quality:
     file_path: "{dataset.path}/{dataset.extra_metadata_dir}"
     file_name: Quality_Parameters
     augmentation:
@@ -158,7 +158,18 @@ quality_statistic:
             rel_height: 0.95
             plateau_size: null
         min_detection_count: 2
-    RepeatedValueDetector:
-        min_run_length: 3
-        tolerance: 0.001
-        relation_to_max: 0.9
+
+    constant:
+        SeisRoutine:
+            RepeatedValueDetector:
+                min_run_length: 3
+                tolerance: 0.001
+                relation_to_max: 0.9
+    
+    statistics:
+        scipy:
+            skew:
+                bias: false
+            kurtosis:
+                fisher: true
+                bias: false
