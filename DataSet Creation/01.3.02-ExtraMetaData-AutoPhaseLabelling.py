@@ -23,33 +23,6 @@ import warnings
 warnings.simplefilter('ignore', DeprecationWarning)
 ##########################################################################
 
-from obspy.core.trace import Trace
-from obspy.core.stream import Stream
-
-def mk_stream(data, header=None, component_order="ENZ"):
-    if not header:
-        header = {
-            "network": "IK",
-            "station": "IK",
-            "location": "IK",
-            "channel": None,
-            "sampling_rate": 100,
-        }
-    
-    lst_tr = []
-    for d, cha in zip(data, component_order):
-        header.update({"channel": f"HH{cha}"})
-    
-        tr = Trace(
-            data=d,
-            header=header,
-        )
-        lst_tr.append(tr)
-    st = Stream(lst_tr)
-    
-    return st
-
-
 def auto_labeling(stream=None, array=None, dl_pickers=None):
     outputs = {'P': {}, 'S': {}}
     for name, picker in dl_pickers.items():
@@ -107,14 +80,16 @@ def find_peaks_in_segments(x, threshold):
     peak_values = []
 
     for s, e in zip(starts, ends):
-        segment = x[s:e]
+        segment = x[s: e]
         local_idx = np.argmax(segment)
         peak_indices.append(s + local_idx)
         peak_values.append(segment[local_idx])
         
+    peak_indices = np.atleast_1d(peak_indices)
+    peak_values = np.atleast_1d(peak_values)
     
+    return peak_indices, peak_values
 
-    return np.atleast_1d(peak_indices), np.atleast_1d(peak_values)
 
 cfg_projects = srconf.Config.load('./Configs/Projects.yml')
 cfg_project = cfg_projects.extra_parameters
@@ -169,19 +144,15 @@ generator = srsb.dataset.make_generator(dataset, augmentations)
 
 dl_pickers = {}
 for cfg_model in cfg.auto_picker.dl:
-    print(cfg_model)
     model = srconf.ObjectFactory.create(
         obj_str=cfg_model.cls,
-    ).from_pretrained(cfg_model.weights_type)
-    dl_pickers[f'{cfg_model.cls}_{cfg_model.weights_type}'] = model
+    ).from_pretrained(
+        **cfg_model.from_pretrained.to_dict()
+    )
+    dl_pickers[f'{cfg_model.cls}_{cfg_model.from_pretrained.name}'] = model
 
-if torch.cuda.is_available():
-    for key, dl_picker in dl_pickers.items():
-        dl_picker.cuda();
-        logging.info(f"{key} Running on GPU")
-else:
-    logging.info("Running on CPU")
 
+srsb.models.move_models_to_gpu(dl_pickers=dl_pickers)
 
 p0 = [
     aug
@@ -224,7 +195,8 @@ for sample_index, row in tqdm.tqdm(dataset.metadata.iterrows(),
             dtype=torch.float32,
         ).unsqueeze(0)
         with torch.no_grad():
-            y_pred = model(X)
+            X_preproc = model.annotate_batch_pre(X, {})
+            y_pred = model(X_preproc)
         y_pred = standardize_output(y_pred, model)
         
         for hint, y_p in zip("NPS", y_pred):
