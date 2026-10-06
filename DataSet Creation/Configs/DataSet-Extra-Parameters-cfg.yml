@@ -30,7 +30,7 @@ dataset:
 
 auto_picker:
     file_path: "{dataset.path}/{dataset.extra_metadata_dir}"
-    file_name: auto_picker.csv
+    file_name: "auto_picker_{timestamp}.csv"
     augmentation:
       - cls: SeisRoutine.seisbench.dataset.Tapering
 
@@ -79,16 +79,31 @@ auto_picker:
       #       version_str: latest
       #       update: false
       - cls: seisbench.models.EQTransformer # original = stead
-        weights_type: original
+        from_pretrained:
+            name: original
+            version_str: latest
+            update: false
         
-      - cls: seisbench.models.PhaseNet
-        weights_type: scedc
-      - cls: seisbench.models.PhaseNet
-        weights_type: stead
-      - cls: seisbench.models.PhaseNet
-        weights_type: instance
+      # - cls: seisbench.models.PhaseNet
+      #   from_pretrained:
+      #       name: scedc
+      #       version_str: latest
+      #       update: false
+      # - cls: seisbench.models.PhaseNet
+      #   from_pretrained:
+      #       name: stead
+      #       version_str: latest
+      #       update: false
+      # - cls: seisbench.models.PhaseNet
+      #   from_pretrained:
+      #       name: instance
+      #       version_str: latest
+      #       update: false
       - cls: seisbench.models.PhaseNet # original = Northern California Earthquake Data Center Catalog (NCEDC 2014)
-        weights_type: original
+        from_pretrained:
+            name: original
+            version_str: latest
+            update: false
         
       # - cls: seisbench.models.Skynet
         # weights_type: original
