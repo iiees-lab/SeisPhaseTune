@@ -77,8 +77,8 @@ lst_spr = []
 sp = srw.waveform.SpectralPowerRatio(fs=100, nperseg=1024)
 r_idx = range(len(dataset))
 for idx in tqdm(r_idx):
-    if idx>100:
-        break
+    # if idx>100:
+    #     break
     st = dataset.get_stream(idx)
     cc = correlation_3c(st)
     st.detrend('constant')
