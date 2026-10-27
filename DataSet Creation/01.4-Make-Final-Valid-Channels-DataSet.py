@@ -194,10 +194,14 @@ status_channel_remove['using_data'] = (
      status_channel_remove['spectral_power_ratio']
 )
 
-status_channel_remove['using_data'].to_csv(
+status_channel_remove[['using_data']].to_csv(
     outpath / "valid_channels_quality_passed.csv"
 )
-    
+
+status_channel_remove[['using_data']].to_pickle(
+    outpath / "valid_channels_quality_passed.pkl"
+)
+
 ###############################################################################
 ## For Test and Viualization
 '''
