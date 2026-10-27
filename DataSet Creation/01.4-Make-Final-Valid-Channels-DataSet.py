@@ -57,12 +57,6 @@ dataset.get_stream = srsb.dataset.get_stream.__get__(dataset)
 ##########################################################################
 status_channel_remove = {}
 ########################################################################## PS-PAIR
-def for_apply(cell):
-    if cell:
-        return set()
-    else:
-        return {0, 1, 2}
-
 fpath = (
     Path(cfg.ps_selection.file_path) /
     cfg.ps_selection.file_name.replace('csv', 'pkl')
@@ -71,64 +65,58 @@ df = pd.read_pickle(fpath)
 
 msk = df[['Manual_Pick_S','Manual_Pick_P']].notna().all(axis=1)
 
-status_channel_remove['ps-pair'] = msk.apply(for_apply)
+df_tmp = pd.DataFrame({
+    key: msk
+    for key in ["HNN", "HNE", "HNZ"]
+})
 
-########################################################################## repeated
+status_channel_remove['Not PS-pair'] = srsb.dataset.get_remaining_channels(
+    df=df_tmp,
+    remove_elements=True,
+    component_order="ENZ",
+)
+
+###################################################################### repeated
 fpath = (
     Path(cfg.ps_selection.file_path) /
     "Quality_Parameters-constant.pkl"
 )
 df = pd.read_pickle(fpath)
-numeric_cols = df.select_dtypes(include="number").columns
+# numeric_cols = df.select_dtypes(include="number").columns
 # df[numeric_cols] = df[numeric_cols] > 100
-def compute_signal_label(
-        row,
-        channels="ENZ"
-    ):
-    remain_channels = "ENZ"
-    
-    for channel in channels:
-        label = 'trace_{}_clipped_signal_count'.format(channel)
-        if row[label] == 0:
-            remain_channels = remain_channels.replace(channel, '')
-        label = 'trace_{}_repeated_signal_count'.format(channel)
-        if row[label] == 0:
-            remain_channels = remain_channels.replace(channel, '')
-    return remain_channels
 
-df['clipped_label'] = df.apply(compute_signal_label, axis=1)
-component_order = "ENZ"
+df_tmp = df.select_dtypes(include="number") == 0
+for cha in "ENZ":
+    cols = [col for col in df_tmp.columns if f"trace_{cha}" in col]
+    df_tmp[cha] = df_tmp[cols].all(axis=1)
+    print(cols)
 
 
-def to_indices(s, component_order="ENZ"):
-    return {component_order.index(ch) for ch in s}
-status_channel_remove['repeated'] = df['clipped_label'].apply(to_indices)
-########################################################################## SPIKE
-def compute_signal_label(
-        row,
-        channels="ENZ"
-    ):
-    remain_channels = "ENZ"
-    
-    for channel in channels:
-        try:
-            label = 'trace_{}_spike_index'.format(channel)
-            if len(row[label]) == 0:
-                remain_channels = remain_channels.replace(channel, '')
-        except Exception as error:
-            print(error, row.index, row)
-    return remain_channels
-        
-
+status_channel_remove['repeated'] = srsb.dataset.get_remaining_channels(
+    df=df_tmp[["E", "N", "Z"]],
+    remove_elements=True,
+    component_order="ENZ",
+)
+######################################################################### SPIKE
 fpath = (
     Path(cfg.ps_selection.file_path) /
     "Quality_Parameters-spike.pkl"
 )
 df = pd.read_pickle(fpath)
-df['spike_label'] = df.apply(compute_signal_label, axis=1)
-status_channel_remove['spike'] = df['spike_label'].apply(to_indices)
+df = df.map(lambda x: x if isinstance(x, (list, np.ndarray)) else [])
+cols = [col for col in df.columns if "spike" in col]
 
-########################################################################## Uniq EQ
+for cha in "ENZ":
+    df[cha] = df[f'trace_{cha}_spike_index'].map(len)
+
+df_tmp = df[["E", "N", "Z"]] != 0
+status_channel_remove['spike'] = srsb.dataset.get_remaining_channels(
+    df=df_tmp,
+    remove_elements=False,
+    component_order="ENZ",
+)
+
+###################################################################### Uniq EQ
 fpath = (
     Path(cfg.ps_selection.file_path) /
     "rm_multiple_eq_in_data.pkl"
@@ -168,7 +156,7 @@ for c in cols:
 cond_df = pd.concat(conditions, axis=1)
 cond_df.columns = cols
 
-# لیست ستون‌هایی که شرط رو دارن (ممکنه چندتا باشن)
+# # لیست ستون‌هایی که شرط رو دارن (ممکنه چندتا باشن)
 # result = cond_df.apply(lambda r: list(r[r].index) or None, axis=1)
 result = cond_df.any(axis=1)
 print(result)
@@ -191,22 +179,23 @@ status_channel_remove['spectral_power_ratio'] = pd.Series(
     srsb.dataset.get_remaining_channels(
         df=df_tmp>threshold_spr,
         remove_elements=False,
-        reference_channels=None,
+        component_order="ENZ",
     )
 )
 ##########################################################################
+status_channel_remove = pd.DataFrame(status_channel_remove)
 status_channel_remove['using_data'] = (
      {0, 1, 2} -\
      status_channel_remove['repeated'] -\
-     status_channel_remove['ps-pair'] -\
+     status_channel_remove['Not PS-pair'] -\
      status_channel_remove['spike'] -\
      status_channel_remove['multiple_eq'] -\
      # cond_df['result'] -\
      status_channel_remove['spectral_power_ratio']
 )
 
-status_channel_remove['using_data'].to_pickle(
-    outpath / "valid_channels_quality_passed.pkl"
+status_channel_remove['using_data'].to_csv(
+    outpath / "valid_channels_quality_passed.csv"
 )
     
 ###############################################################################
