@@ -115,12 +115,9 @@ for cfg_project in cfg_projects.projects:
     msg = cfg.__str__()
     logging.info(f'Configuration File:\n{msg}')
     
-    
-    data_format = cfg.to_dict()['dataset']['data_format']
-    data_format_tmp = data_format.copy()
     dataset = WaveformDataset(
-        path=cfg.path.dataset,
-        **data_format_tmp
+        path=cfg.dataset.path,
+        **cfg.dataset.data_format.to_dict()
     )
     
     ps_pair = srsb.dataset.find_ps_pairs(
