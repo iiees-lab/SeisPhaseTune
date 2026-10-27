@@ -119,14 +119,18 @@ for cfg_project in cfg_projects.projects:
         path=cfg.dataset.path,
         **cfg.dataset.data_format.to_dict()
     )
-    
-    ps_pair = srsb.dataset.find_ps_pairs(
-        metadata=dataset.metadata
-    )
-    dataset.metadata['PS-Pairs'] = ps_pair
-    
 
-    dataset.metadata['Usable'] = ps_pair
+    valid_channels = pd.read_pickle(
+        Path(cfg.dataset.path) /
+        cfg.dataset.extra_metadata_dir /
+        cfg.dataset.valid_channels
+    )
+    valid_channels['repaired_channels'] = valid_channels['using_data'].apply(
+        srsb.dataset.fill_missing_channels
+    )
+    
+    dataset.metadata['channel_status'] = valid_channels['repaired_channels']
+    dataset.metadata['Usable'] = valid_channels['repaired_channels'].apply(lambda x: x != [])
     dataset.metadata.loc[cfg.dataset.manual_excluded_samples, 'Usable'] = False
     
     phase_dict = srsb.dataset.build_phase_mapper(
