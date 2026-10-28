@@ -206,8 +206,8 @@ quality:
 
     decision:
         snr:
-            cls: 'operator.gt'  
-            threshold: 3.0
+            cls: 'operator.ge'  
+            threshold: 1.5
             get_remaining_channels:
                 remove_elements: true
                 component_order: 'ENZ' #'{dataset.data_format.component_order}'
