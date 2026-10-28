@@ -205,7 +205,6 @@ status_channel_remove[['using_data']].to_pickle(
 
 ###############################################################################
 ## For Test and Viualization
-'''
 def add_info_box(fig, *items, title="Info"):
     """
     Display variables and text in a box on the right side of a figure.
@@ -240,26 +239,32 @@ def add_info_box(fig, *items, title="Info"):
     return fig
 
 
-status_channel_remove['using_data'].value_counts()
 
-import matplotlib.pyplot as plt
-r_idx = range(len(dataset))
-for idx in r_idx:
-    # idx = [25, 38, 50, 61, 73, 85, 95, 106, 116, 123, 133, 139, 144, 147, 150, 152, 156, 159, 162, 168, 174, 176, 181, 185, 186, 196, 216, 217, 218, 222, 246, 257, 261, 268, 270, 284]
-    st = dataset.get_stream(idx)
-    fig = st.plot(handle =True, equal_scale=True)
-    fig = add_info_box(fig, {'idx': idx}, title="Info")
-    plt.show()
-    # fig
-    # break
-# coef = 0.5
-# conditions = []
-# cols = df.columns
-# for c in cols:
-#     others = [x for x in cols if x != c]
-#     cond = (df[c] < coef * df[others[0]]) & (df[c] < coef * df[others[1]])
-#     print(c, cond.sum())
-#     conditions.append(cond)
-# cond_df = pd.concat(conditions, axis=1)
-# cond_df.columns = cols
-'''
+
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--debug", action="store_true",
+                    help="show plots after integration")
+parser.add_argument("--idx", type=int, nargs="*",
+                    help="فقط این ردیف‌ها پلات بشن")
+
+
+args = parser.parse_args()
+
+
+if args.debug:
+    import matplotlib.pyplot as plt
+    print(status_channel_remove['using_data'].value_counts())
+    
+    r_idx = args.idx if args.idx else range(len(dataset))
+    '''
+    r_idx = [25, 38, 50, 61, 73, 85, 95, 106, 116, 123, 133, 139, 144, 147,
+             150, 152, 156, 159, 162, 168, 174, 176, 181, 185, 186, 196, 216,
+             217, 218, 222, 246, 257, 261, 268, 270, 284]
+    '''
+    for idx in r_idx:
+        st = dataset.get_stream(idx)
+        fig = st.plot(handle =True, equal_scale=True)
+        fig = add_info_box(fig, {'idx': idx}, title="Info")
+        plt.show()
