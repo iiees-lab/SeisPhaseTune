@@ -142,45 +142,6 @@ df = pd.read_pickle(fpath)
 
 status_channel_remove['multiple_eq'] = df['rm_multiple_eq']
 ##########################################################################
-def compute_signal_label2(
-        row,
-        channels="ENZ"
-    ):
-    mapper = {cha: idx for idx, cha in enumerate(channels)}
-    remain_channels = "ENZ"
-    
-    for channel in channels:
-        label = 'trace_{}_max_counts'.format(channel)
-        if row[label]:
-            remain_channels = remain_channels.replace(channel, '')
-    idx_remain_channels = {mapper[cha] for cha in remain_channels}
-    idx_remove_channels = {0, 1, 2} - idx_remain_channels
-    return idx_remove_channels
-
-df = dataset.metadata
-cols = [key for key in df.keys() if 'max' in key]
-# cols = [key for key in df.keys() if 'min' in key]
-
-n = df.shape[1]
-
-conditions = []
-for c in cols:
-    others = [x for x in cols if x != c]
-    cond = (df[c] < 0.1 * df[others[0]]) | (df[c] < 0.1 * df[others[1]])
-    print(c, cond.sum())
-    conditions.append(cond)
-
-cond_df = pd.concat(conditions, axis=1)
-cond_df.columns = cols
-
-# # لیست ستون‌هایی که شرط رو دارن (ممکنه چندتا باشن)
-# result = cond_df.apply(lambda r: list(r[r].index) or None, axis=1)
-result = cond_df.any(axis=1)
-print(result)
-
-cond_df['result'] = cond_df.apply(compute_signal_label2, axis=1)
-
-##########################################################################
 
 inputpath = Path(cfg.quality.file_path)
 name = cfg.quality.file_name
@@ -233,7 +194,6 @@ status_channel_remove['using_data'] = (
      status_channel_remove['Not PS-pair'] -\
      status_channel_remove['spike'] -\
      status_channel_remove['multiple_eq'] -\
-     # cond_df['result'] -\
      status_channel_remove['spectral_power_ratio'] -\
      status_channel_remove['snr']
 )
