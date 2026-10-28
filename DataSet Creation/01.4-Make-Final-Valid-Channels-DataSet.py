@@ -18,11 +18,9 @@ import SeisRoutine.config as srconf
 import SeisRoutine.seisbench as srsb
 ##########################################################################
 
-
 def check_threshold(value, operator_str, threshold):
     operator = srconf.ObjectFactory.resolve(operator_str)
     return operator(value, threshold)
-check_threshold(value=2, operator_str="operator.gt", threshold=3)
 
 ##############################################################################
 
