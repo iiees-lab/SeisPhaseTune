@@ -169,7 +169,7 @@ df['P_no_eq'] = (
 
 # Just for using `get_remaining_channels` Function
 df_output = pd.DataFrame({
-    key: (df['P-95'] & df['P-100'] & df['P-80'])
+    key: (df['P-95'] | df['P-100'] | df['P-80'])
     for key in ["HNN", "HNE", "HNZ"]
 })
 
@@ -177,12 +177,16 @@ df_output = pd.DataFrame({
 tmp = srsb.dataset.get_remaining_channels(
     df_output,
     remove_elements=False,
-    reference_channels=None)
+    component_order="ENZ")
 
-df_output = pd.DataFrame({"rm_duplicate_eq": tmp})
+df_output = pd.DataFrame({"rm_multiple_eq": tmp})
+from pathlib import Path
+path = Path(
+    r"D:/DataSets-Local/1405-04-03/Merged_Dataset_2026-06-24T15-15-22/Extra_MetaData"
+)
+df_output.to_pickle(path / "rm_multiple_eq_in_data.pkl")
+df_output.to_csv(path / "rm_multiple_eq_in_data.csv")
 
-path = r"D:/DataSets-Local/1405-04-03/Merged_Dataset_2026-06-24T15-15-22/Extra_MetaData/rm_multiple_eq_in_data.pkl"
-df_output.to_pickle(path)
 
 
 ###############################################################################
