@@ -1,5 +1,15 @@
-from seisbench.data import WaveformDataset
+import sys
+import yaml
 
+with open("./Configs/lib.yml", "r") as file:
+    config_dict = yaml.safe_load(file)
+    for path in config_dict['lib_path']:
+        sys.path.append(path)
+
+import SeisRoutine.config as srconf
+import SeisRoutine.seisbench as srsb
+##########################################################################
+from seisbench.data import WaveformDataset
 import seisbench.util as sbu
 import numpy as np
 import pandas as pd
@@ -8,22 +18,9 @@ from torch.utils.data import DataLoader
 import logging
 from pathlib import Path
 
-
-##########################################################################
-import sys
-lib_path = [
-    r'C:\Users\ikahbasi\OneDrive\Applications\GitHub\SeisRoutine',
-    r'C:\Users\ikahb\OneDrive\Applications\GitHub\SeisRoutine',
-]
-for path in lib_path:
-    sys.path.append(path)
-
-import SeisRoutine.config as srconf
-import SeisRoutine.seisbench as srsb
-##########################################################################
 import warnings
+
 warnings.simplefilter('ignore', DeprecationWarning)
-##########################################################################
 
 
 def loss_func(y_pred, y_true, eps=1e-5):
