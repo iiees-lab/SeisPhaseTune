@@ -179,6 +179,30 @@ status_channel_remove['spectral_power_ratio'] = pd.Series(
     )
 )
 ##########################################################################
+
+inputpath = Path(cfg.quality.file_path)
+name = cfg.quality.file_name
+fpath = inputpath / f'{name}-SNR.pkl'
+df_snr = pd.read_pickle(fpath)
+
+threshold_snr = 3
+msk_columns = [col for col in df_snr.columns
+               if '_P-hint_power_in_time_count' in col]
+mapping = {
+    key: 'HH'+key.split('_')[1]
+    for key in msk_columns
+}
+
+df_tmp = df_snr[msk_columns].rename(columns=mapping)
+
+status_channel_remove['snr'] = pd.Series(
+    srsb.dataset.get_remaining_channels(
+        df=df_tmp < threshold_spr,
+        remove_elements=False,
+        component_order="ENZ",
+    )
+)
+##########################################################################
 status_channel_remove = pd.DataFrame(status_channel_remove)
 status_channel_remove['using_data'] = (
      {0, 1, 2} -\
@@ -187,7 +211,8 @@ status_channel_remove['using_data'] = (
      status_channel_remove['spike'] -\
      status_channel_remove['multiple_eq'] -\
      # cond_df['result'] -\
-     status_channel_remove['spectral_power_ratio']
+     status_channel_remove['spectral_power_ratio'] -\
+     status_channel_remove['snr']
 )
 
 outpath = Path(cfg.quality.file_path)
