@@ -63,14 +63,14 @@ status_channel_remove = {}
 ########################################################################## PS-PAIR
 fpath = (
     Path(cfg.ps_selection.file_path) /
-    cfg.ps_selection.file_name.replace('csv', 'pkl')
+    cfg.ps_selection.file_name.with_suffix('.pkl')
 )
 df_ps_pair = pd.read_pickle(fpath)
 
 msk = df_ps_pair[['Manual_Pick_S','Manual_Pick_P']].notna().all(axis=1)
 df_tmp = pd.DataFrame({
     key: msk
-    for key in ["HNN", "HNE", "HNZ"]
+    for key in ["HNE", "HNN", "HNZ"]
 })
 
 status_channel_remove['Not PS-pair'] = pd.Series(
@@ -113,7 +113,6 @@ df_spike = df_spike.map(
         x if isinstance(x, (list, np.ndarray))
         else []
 )
-cols = [col for col in df_spike.columns if "spike" in col]
 
 mapper = {
     col: "HH"+col.split('_')[1]
