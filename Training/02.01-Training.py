@@ -183,13 +183,10 @@ for cfg_project in cfg_projects.projects:
         logging.info(msg)
         model = model.from_pretrained(cfg.model.weights_type)
     
-    if torch.cuda.is_available():
-        model.cuda()
-        msg = "CUDA is available. Training on GPU."
-    else:
-        msg = "CUDA is NOT available. Training on CPU."
+    srsb.models.move_models_to_gpu(
+        dl_pickers={cfg.model.cls: model}
     
-    logging.info(msg)
+    )
     
     model_path = Path(cfg.path.model)
     best_checkpoint_path = model_path / "best.ckpt"
