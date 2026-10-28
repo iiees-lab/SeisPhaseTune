@@ -77,10 +77,9 @@ status_channel_remove['Not PS-pair'] = srsb.dataset.get_remaining_channels(
 )
 
 ###################################################################### repeated
-fpath = (
-    Path(cfg.ps_selection.file_path) /
-    "Quality_Parameters-constant.pkl"
-)
+inputpath = Path(cfg.quality.file_path)
+name = cfg.quality.file_name
+fpath = inputpath / f'{name}-constant.pkl'
 df = pd.read_pickle(fpath)
 # numeric_cols = df.select_dtypes(include="number").columns
 # df[numeric_cols] = df[numeric_cols] > 100
@@ -98,10 +97,10 @@ status_channel_remove['repeated'] = srsb.dataset.get_remaining_channels(
     component_order="ENZ",
 )
 ######################################################################### SPIKE
-fpath = (
-    Path(cfg.ps_selection.file_path) /
-    "Quality_Parameters-spike.pkl"
-)
+
+inputpath = Path(cfg.quality.file_path)
+name = cfg.quality.file_name
+fpath = inputpath / f'{name}-spike.pkl'
 df = pd.read_pickle(fpath)
 df = df.map(lambda x: x if isinstance(x, (list, np.ndarray)) else [])
 cols = [col for col in df.columns if "spike" in col]
@@ -117,10 +116,9 @@ status_channel_remove['spike'] = srsb.dataset.get_remaining_channels(
 )
 
 ###################################################################### Uniq EQ
-fpath = (
-    Path(cfg.ps_selection.file_path) /
-    "rm_multiple_eq_in_data.pkl"
-)
+inputpath = Path(cfg.quality.file_path)
+name = "rm_multiple_eq_in_data.pkl"
+fpath = inputpath / name
 df = pd.read_pickle(fpath)
 
 status_channel_remove['multiple_eq'] = df['rm_multiple_eq']
@@ -165,12 +163,10 @@ cond_df['result'] = cond_df.apply(compute_signal_label2, axis=1)
 
 ##########################################################################
 
-outpath = Path(cfg.quality.file_path)
+inputpath = Path(cfg.quality.file_path)
 name = cfg.quality.file_name
-fpath = outpath / f'{name}_EnrgyRatioSpectral.pkl'
-df_spr = pd.read_pickle(
-    Path(cfg.quality.file_path) / f'{name}_EnrgyRatioSpectral.pkl'
-)
+fpath = inputpath / f'{name}_EnrgyRatioSpectral.pkl'
+df_spr = pd.read_pickle(fpath)
 
 threshold_spr = 0.8
 msk = sorted([key for key in df_spr.keys() if key.startswith('spr_')])
@@ -194,6 +190,7 @@ status_channel_remove['using_data'] = (
      status_channel_remove['spectral_power_ratio']
 )
 
+outpath = Path(cfg.quality.file_path)
 status_channel_remove[['using_data']].to_csv(
     outpath / "valid_channels_quality_passed.csv"
 )
