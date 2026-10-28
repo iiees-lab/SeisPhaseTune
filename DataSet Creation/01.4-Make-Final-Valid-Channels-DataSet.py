@@ -95,7 +95,6 @@ df_tmp = check_threshold(
 for cha in "ENZ":
     cols = [col for col in df_tmp.columns if f"trace_{cha}" in col]
     df_tmp['HH'+cha] = df_tmp[cols].all(axis=1)
-    print(cols)
 
 
 status_channel_remove['repeated'] = pd.Series(
