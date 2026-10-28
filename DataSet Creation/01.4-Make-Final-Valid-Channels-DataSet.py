@@ -19,6 +19,14 @@ import SeisRoutine.seisbench as srsb
 ##########################################################################
 
 
+def check_threshold(value, operator_str, threshold):
+    operator = srconf.ObjectFactory.resolve(operator_str)
+    return operator(value, threshold)
+check_threshold(value=2, operator_str="operator.gt", threshold=3)
+
+##############################################################################
+
+
 cfg_projects = srconf.Config.load('./Configs/Projects.yml')
 cfg_project = cfg_projects.extra_parameters
 timestamp = srconf.timestamp()
@@ -47,11 +55,9 @@ logging.info(f'Configuration File:\n{msg}')
 
 
 cfg.dataset.path = Path(cfg.dataset.path)
-data_format = cfg.to_dict()['dataset']['data_format']
-data_format_tmp = data_format.copy()
 dataset = WaveformDataset(
     path=cfg.dataset.path,
-    **data_format_tmp
+    **cfg.dataset.data_format.to_dict()
 )
 dataset.get_stream = srsb.dataset.get_stream.__get__(dataset)
 ##########################################################################
@@ -61,60 +67,73 @@ fpath = (
     Path(cfg.ps_selection.file_path) /
     cfg.ps_selection.file_name.replace('csv', 'pkl')
 )
-df = pd.read_pickle(fpath)
+df_ps_pair = pd.read_pickle(fpath)
 
-msk = df[['Manual_Pick_S','Manual_Pick_P']].notna().all(axis=1)
-
+msk = df_ps_pair[['Manual_Pick_S','Manual_Pick_P']].notna().all(axis=1)
 df_tmp = pd.DataFrame({
     key: msk
     for key in ["HNN", "HNE", "HNZ"]
 })
 
-status_channel_remove['Not PS-pair'] = srsb.dataset.get_remaining_channels(
-    df=df_tmp,
-    remove_elements=True,
-    component_order="ENZ",
+status_channel_remove['Not PS-pair'] = pd.Series(
+    srsb.dataset.get_remaining_channels(
+        df=df_tmp,
+        **cfg.quality.decision.ps_pair.get_remaining_channels.to_dict(),
+    )
 )
-
 ###################################################################### repeated
 inputpath = Path(cfg.quality.file_path)
 name = cfg.quality.file_name
 fpath = inputpath / f'{name}-constant.pkl'
-df = pd.read_pickle(fpath)
+df_const = pd.read_pickle(fpath)
 # numeric_cols = df.select_dtypes(include="number").columns
 # df[numeric_cols] = df[numeric_cols] > 100
 
-df_tmp = df.select_dtypes(include="number") == 0
+df_tmp = check_threshold(
+    value=df_const.select_dtypes(include="number"),
+    operator_str=cfg.quality.decision.constant.cls,
+    threshold=cfg.quality.decision.constant.threshold,
+)
 for cha in "ENZ":
     cols = [col for col in df_tmp.columns if f"trace_{cha}" in col]
-    df_tmp[cha] = df_tmp[cols].all(axis=1)
+    df_tmp['HH'+cha] = df_tmp[cols].all(axis=1)
     print(cols)
 
 
-status_channel_remove['repeated'] = srsb.dataset.get_remaining_channels(
-    df=df_tmp[["E", "N", "Z"]],
-    remove_elements=True,
-    component_order="ENZ",
+status_channel_remove['repeated'] = pd.Series(
+    srsb.dataset.get_remaining_channels(
+        df=df_tmp[["HHE", "HHN", "HHZ"]],
+        **cfg.quality.decision.constant.get_remaining_channels.to_dict(),
+    )
 )
 ######################################################################### SPIKE
-
 inputpath = Path(cfg.quality.file_path)
 name = cfg.quality.file_name
 fpath = inputpath / f'{name}-spike.pkl'
-df = pd.read_pickle(fpath)
-df = df.map(lambda x: x if isinstance(x, (list, np.ndarray)) else [])
-cols = [col for col in df.columns if "spike" in col]
-
-for cha in "ENZ":
-    df[cha] = df[f'trace_{cha}_spike_index'].map(len)
-
-df_tmp = df[["E", "N", "Z"]] != 0
-status_channel_remove['spike'] = srsb.dataset.get_remaining_channels(
-    df=df_tmp,
-    remove_elements=False,
-    component_order="ENZ",
+df_spike = pd.read_pickle(fpath)
+df_spike = df_spike.map(
+    lambda x:
+        x if isinstance(x, (list, np.ndarray))
+        else []
 )
+cols = [col for col in df_spike.columns if "spike" in col]
 
+mapper = {
+    col: "HH"+col.split('_')[1]
+    for col in df_spike.columns
+    if 'spike' in col
+}
+
+status_channel_remove['spike'] = pd.Series(
+    srsb.dataset.get_remaining_channels(
+        df=check_threshold(
+            value=df_spike[mapper.keys()].rename(columns=mapper).map(len),
+            operator_str=cfg.quality.decision.spike.cls,
+            threshold=cfg.quality.decision.spike.threshold,
+        ),
+        **cfg.quality.decision.spike.get_remaining_channels.to_dict(),
+    )
+)
 ###################################################################### Uniq EQ
 inputpath = Path(cfg.quality.file_path)
 name = "rm_multiple_eq_in_data.pkl"
@@ -168,38 +187,42 @@ name = cfg.quality.file_name
 fpath = inputpath / f'{name}_EnrgyRatioSpectral.pkl'
 df_spr = pd.read_pickle(fpath)
 
-threshold_spr = 0.8
-msk = sorted([key for key in df_spr.keys() if key.startswith('spr_')])
-df_tmp = df_spr[msk]
+mapping = {
+    col: col.split('_')[1]
+    for col in df_spr.columns
+    if col.startswith("spr_")
+}
+
 status_channel_remove['spectral_power_ratio'] = pd.Series(
     srsb.dataset.get_remaining_channels(
-        df=df_tmp>threshold_spr,
-        remove_elements=False,
-        component_order="ENZ",
+        df=check_threshold(
+            value=df_spr[mapping.keys()].rename(columns=mapping),
+            operator_str=cfg.quality.decision.spr.cls,
+            threshold=cfg.quality.decision.spr.threshold,
+        ),
+        **cfg.quality.decision.spr.get_remaining_channels.to_dict(),
     )
 )
 ##########################################################################
-
 inputpath = Path(cfg.quality.file_path)
 name = cfg.quality.file_name
 fpath = inputpath / f'{name}-SNR.pkl'
 df_snr = pd.read_pickle(fpath)
 
-threshold_snr = 3
-msk_columns = [col for col in df_snr.columns
-               if '_P-hint_power_in_time_count' in col]
 mapping = {
     key: 'HH'+key.split('_')[1]
-    for key in msk_columns
+    for key in df_snr.columns
+    if '_P-hint_power_in_time_count' in key
 }
-
-df_tmp = df_snr[msk_columns].rename(columns=mapping)
 
 status_channel_remove['snr'] = pd.Series(
     srsb.dataset.get_remaining_channels(
-        df=df_tmp < threshold_spr,
-        remove_elements=False,
-        component_order="ENZ",
+        df=check_threshold(
+            value=df_snr[mapping.keys()].rename(columns=mapping),
+            operator_str=cfg.quality.decision.snr.cls,
+            threshold=cfg.quality.decision.snr.threshold,
+        ),
+        **cfg.quality.decision.snr.get_remaining_channels.to_dict(),
     )
 )
 ##########################################################################

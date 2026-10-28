@@ -203,3 +203,33 @@ quality:
             kurtosis:
                 fisher: true
                 bias: false
+
+    decision:
+        snr:
+            cls: 'operator.gt'  
+            threshold: 3.0
+            get_remaining_channels:
+                remove_elements: true
+                component_order: 'ENZ' #'{dataset.data_format.component_order}'
+        spr:
+            cls: 'operator.gt'
+            threshold: 0.8
+            get_remaining_channels:
+                remove_elements: false
+                component_order: 'ENZ' #'{dataset.data_format.component_order}'
+        spike:
+            cls: 'operator.eq'
+            threshold: 0.0
+            get_remaining_channels:
+                remove_elements: true
+                component_order: 'ENZ' #'{dataset.data_format.component_order}'
+        constant:
+            cls: 'operator.eq'
+            threshold: 0.0
+            get_remaining_channels:
+                remove_elements: true
+                component_order: 'ENZ' #'{dataset.data_format.component_order}'
+        ps_pair:
+            get_remaining_channels:
+                remove_elements: true
+                component_order: 'ENZ' #'{dataset.data_format.component_order}'
