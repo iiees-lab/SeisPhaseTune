@@ -233,3 +233,9 @@ quality:
             get_remaining_channels:
                 remove_elements: true
                 component_order: '{dataset.data_format.component_order}'
+        data_length:
+            cls: 'operator.eq'
+            threshold: 3001
+            get_remaining_channels:
+                remove_elements: true
+                component_order: '{dataset.data_format.component_order}'

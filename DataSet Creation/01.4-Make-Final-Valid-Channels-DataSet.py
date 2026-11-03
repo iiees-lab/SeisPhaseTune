@@ -79,6 +79,25 @@ status_channel_remove['Not PS-pair'] = pd.Series(
         **cfg.quality.decision.ps_pair.get_remaining_channels.to_dict(),
     )
 )
+################################################################### Data Length
+inputpath = Path(cfg.quality.file_path)
+name = cfg.quality.file_name
+fpath = inputpath / f'{name}_DataLength.pkl'
+channels = ["HHE", "HHN", "HHZ"]
+df_len = pd.read_pickle(fpath)
+
+df_tmp = check_threshold(
+    value=df_len[channels],
+    operator_str=cfg.quality.decision.data_length.cls,
+    threshold=cfg.quality.decision.data_length.threshold,
+)
+
+status_channel_remove['length'] = pd.Series(
+    srsb.dataset.get_remaining_channels(
+        df=df_tmp,
+        **cfg.quality.decision.data_length.get_remaining_channels.to_dict(),
+    )
+)
 ###################################################################### repeated
 inputpath = Path(cfg.quality.file_path)
 name = cfg.quality.file_name
@@ -191,6 +210,7 @@ status_channel_remove['using_data'] = (
      status_channel_remove['spike'] -\
      status_channel_remove['multiple_eq'] -\
      status_channel_remove['spectral_power_ratio'] -\
+     status_channel_remove['length'] -\
      status_channel_remove['snr']
 )
 
