@@ -63,8 +63,8 @@ status_channel_remove = {}
 ########################################################################## PS-PAIR
 fpath = (
     Path(cfg.ps_selection.file_path) /
-    cfg.ps_selection.file_name.with_suffix('.pkl')
-)
+    cfg.ps_selection.file_name
+).with_suffix('.pkl')
 df_ps_pair = pd.read_pickle(fpath)
 
 msk = df_ps_pair[['Manual_Pick_S','Manual_Pick_P']].notna().all(axis=1)
